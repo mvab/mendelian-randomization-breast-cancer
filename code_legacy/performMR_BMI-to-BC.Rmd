@@ -1,0 +1,176 @@
+---
+title: "MR workflow"
+author: "Marina Vabistsevits"
+date: "04/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(TwoSampleMR)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("set_paths.R")
+set_paths(currently_working_env)
+
+# metafile
+data_lookup<-read_csv(paste0("metadata/data_lookup.csv")) 
+```
+
+**Exposures**
+```{r}
+# load exposures
+early_bmi_file <- paste0(data_path_tophits, "all_good/earlyBMI_UKB_tophits.csv")
+
+early_bmi <- read_exposure_data(
+    filename = early_bmi_file,
+    sep = ",",
+    snp_col = "SNP",
+    beta_col = "Beta",
+    se_col = "Standard Error",
+    effect_allele_col = "Effect allele",
+    other_allele_col = "Other allele",
+    eaf_col = "Effect allele frequency",
+    pval_col = "P",
+    gene_col = "Closest gene",
+    
+)
+early_bmi$exposure <- "Childhood BMI"
+dim(early_bmi) # 135
+
+
+adult_bmi_file <- paste0(data_path_tophits, "all_good/adultBMI_UKB_tophits.csv")
+
+adult_bmi <- read_exposure_data(
+    filename = adult_bmi_file,
+    sep = ",",
+    snp_col = "SNP",
+    beta_col = "Beta",
+    se_col = "Standard Error",
+    effect_allele_col = "Effect allele",
+    other_allele_col = "Other allele",
+    eaf_col = "Effect allele frequency",
+    pval_col = "P",
+    gene_col = "Closest gene"
+)
+adult_bmi$exposure <- "Adult BMI"
+dim(adult_bmi) # 215
+```
+
+# Load BMI exposure files
+```{r}
+
+early_bmi_file <- data_lookup %>% filter(trait == "Early BMI") %>% pull(tophits_data)
+early_bmi <- read_tsv(paste0(data_path_tophits, early_bmi_file))
+early_bmi$exposure <- "Childhood BMI"
+dim(early_bmi) # 135 # 150 in new
+
+adult_bmi_file <- data_lookup %>% filter(trait == "Adult BMI") %>% pull(tophits_data)
+adult_bmi <- read_tsv(paste0(data_path_tophits, adult_bmi_file))
+dim(adult_bmi) # 215 # 209 in new
+
+```
+
+# load adjusted file from sup, data
+```{r}
+# load exposures
+early_bmi_file <- paste0(data_path_tophits, "all_good/earlyBMI_adj_UKB_tophits.csv")
+
+early_bmi <- read_exposure_data(
+    filename = early_bmi_file,
+    sep = ",",
+    snp_col = "SNP",
+    beta_col = "Beta",
+    se_col = "Standard Error",
+    effect_allele_col = "Effect allele",
+    other_allele_col = "Other allele",
+    eaf_col = "Effect allele frequency",
+    pval_col = "P",
+    gene_col = "Closest gene",
+    
+)
+early_bmi$exposure <- "Childhood BMI"
+dim(early_bmi) # 138
+
+```
+
+
+
+**Outcomes**
+
+```{r}
+ao <- available_outcomes()
+ao %>% filter(grepl("Breast", trait)) %>% filter(consortium == "BCAC") %>% View()
+# use largest: N=228951, cases:122977; ID: 1126
+```
+
+BCAC, N= 228951, females only , Breast cancer (Combined Oncoarray; iCOGS; GWAS meta analysis)
+
+```{r}
+# Early BMI
+breast_cancer_1 <- extract_outcome_data(
+                snps = early_bmi$SNP,
+                outcome = 1126,
+                proxies = TRUE,
+                rsq = 0.8, maf_threshold = 0.3) 
+dim(breast_cancer_1) # 124 (13 proxies)  # new: 136
+
+# Adult BMI
+breast_cancer_2 <- extract_outcome_data(
+                snps = adult_bmi$SNP,
+                outcome = 1126,
+                proxies = TRUE,
+                rsq = 0.8, maf_threshold = 0.3) 
+dim(breast_cancer_2) # 204 (14 proxies) # new 201
+```
+
+
+**Harmonise**
+
+```{r}
+dat_1 <- harmonise_data(exposure_dat = early_bmi, 
+                        outcome_dat = breast_cancer_1)
+dat_2 <- harmonise_data(exposure_dat = adult_bmi, 
+                        outcome_dat = breast_cancer_2)
+#dim(dat_1)
+#table(dat_1$mr_keep)
+#dim(dat_2)
+#table(dat_2$mr_keep)
+```
+**Perform MR**
+
+```{r}
+res_1 <- mr(dat_1, method_list=c('mr_ivw')) 
+res_2 <- mr(dat_2, method_list=c('mr_ivw')) 
+```
+
+
+**Tidy up results**
+- Split outcome names
+- Generate odds ratios with 95% confidence intervals
+
+```{r}
+res_1_tidy<- res_1 %>%
+              split_outcome() %>% 
+              split_exposure() %>% 
+              separate(outcome, "outcome", sep="[(]") %>% 
+              generate_odds_ratios()
+
+res_2_tidy<- res_2 %>%
+              split_outcome() %>% 
+              split_exposure() %>%
+              separate(outcome, "outcome", sep="[(]") %>% 
+              generate_odds_ratios()
+
+out2 <- rbind(res_1_tidy, res_2_tidy )
+write_tsv(out, paste0(results_path, "MR_BMI-to-BC.tsv"))
+
+```
+

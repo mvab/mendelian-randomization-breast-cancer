@@ -1,0 +1,612 @@
+---
+title: "mediation analysis for all"
+author: "Marina Vabistsevits"
+date: "11/06/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(RMediation)
+
+library(tidyr)
+library(readr)
+library(dplyr)
+library(data.table)
+library(kableExtra)
+
+library(ggplot2)
+library(cowplot)
+```
+
+```{r message=F}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("set_paths.R")
+set_paths(currently_working_env)
+
+# metafile
+data_lookup<-read_csv(paste0("metadata/data_lookup.csv")) 
+source("functions.R")
+
+# breast cancer dataset
+# 1126 full, 1127 ER+, 1128 ER-
+breast_cancer_id <- "ieu-a-1126" 
+bc_data <- stringr::str_split(breast_cancer_id, "-")[[1]][3]
+```
+
+
+# Load total effect results (Childhood BMI -> BC)
+
+### Univariable MR:  BMI -> Breast cancer (total effect)
+
+```{r, message=F}
+uni_BC<-read_tsv(paste0(results_path, "bmi/merged/merged_mr_mediators_bmi-to-BCAC_", bc_data,".tsv")) %>% 
+  filter(method == "Inverse variance weighted") %>%
+  filter(exposure == "Childhood BMI") %>% 
+  select(exposure,outcome,b,lo_ci, up_ci, or, or_lci95, or_uci95, pval, se) 
+
+exposure_total_beta <- uni_BC %>% pull(b)
+exposure_total_se <- uni_BC %>% pull(se)
+```
+
+
+
+# Mediation analysis
+
+Mediation analysis can be used to dissect the total causal effect of the risk factor on the outcome into an indirect effect of the risk factor on the outcome via the mediator, and a direct effect of the risk factor on the outcome not via the mediator.
+
+
+## Difference method
+
+INDIRECT = TOTAL (of exposure, univ) - DIRECT (of exposure, mvmr in presence of mediator)
+
+```{r}
+difference_method <- function(total_beta, total_se, direct_beta, direct_se, verbose = F){
+  # calculate indirect effect of exposure on outcome (via mediator) 
+  # i.e. how much mediator accounts for total effect of exposure on outcome effect
+  
+  # calculate indirect effect beta
+  # INDIRECT = TOTAL (of exposure, univ) - DIRECT (of exposure, mvmr)
+  indirect_beta = total_beta -  direct_beta
+  #indirect_beta = round(indirect_beta,2)
+  if (verbose) {print(paste("Indirect effect = ", 
+                            round(total_beta, 2)," - ", round(direct_beta, 2), 
+                            " = ", round(indirect_beta,2)))}
+  
+  
+  # calculate SE of indirect effect
+  # SE of INDIRECT effect (difference) = sqrt(SE TOTAL^2 + SE DIRECT^2) 
+  indirect_se = round(sqrt(total_se^2 + direct_se^2), 4)
+  if (verbose) {print(paste("SE of indirect effect = sqrt(",
+                            round(total_se, 2),"^2 + ", round(direct_se,2), 
+                            "^2) = ", indirect_se))}
+  
+  
+  # put data into a tidy df
+  df <-data.frame(b= indirect_beta,
+                  se = indirect_se)
+  
+  # calculate CIs and OR
+  df$lo_ci    <- df$b - 1.96 * df$se
+  df$up_ci    <- df$b + 1.96 * df$se
+  df$or        <-  exp(df$b)
+  df$or_lci95 <- exp(df$lo_ci)
+  df$or_uci95 <- exp(df$up_ci)
+  
+  df<-round(df,3)
+  return(df)
+}
+```
+
+
+## Product method (2 ways)
+
+INDIRECT = TOTAL (exposure -> mediator) x TOTAL (mediator -> outcome)
+INDIRECT = TOTAL (exposure -> mediator) x DIRECT (of mediator , mvmr) 
+
+```{r}
+product_method <- function(EM_beta, EM_se, MO_beta, MO_se, verbose=F){
+  # calculate indirect effect of exposure on outcome (via mediator) 
+  # i.e. how much mediator accounts for total effect of exposure on outcome effect
+
+  # this function can run either of two method, depending on what MO data df you supply 
+  
+  # method 1
+  # INDIRECT = TOTAL (exposure -> mediator) x TOTAL (mediator -> outcome)
+  # method 2
+  # INDIRECT = TOTAL (exposure -> mediator) x DIRECT (of mediator , mvmr) 
+  
+  
+  # calculate indirect effect beta
+  EO <- EM_beta * MO_beta
+  
+  if (verbose) {print(paste("Indirect effect = ", round(EM_beta, 2)," x ", round(MO_beta,2), " = ", round(EO, 3)))}
+  
+  
+  # Calculate CIs using RMediation package
+  CIs = medci(EM_beta, MO_beta, EM_se, MO_se, type="dop")
+  
+  # put data into a tidy df
+  df <-data.frame(b = EO,
+                  se = CIs$SE,
+                  lo_ci = CIs$`97.5% CI`[1],
+                  up_ci= CIs$`97.5% CI`[2])
+  # calculate OR
+  df$or        <-  exp(df$b)
+  df$or_lci95 <- exp(df$lo_ci)
+  df$or_uci95 <- exp(df$up_ci)
+  
+  df<-round(df,3)
+  return(df)
+}
+
+product_method_v2 <- function(EM_beta, EM_se, MO_beta, MO_se, verbose=F){
+  # calculate indirect effect of exposure on outcome (via mediator) 
+  # i.e. how much mediator accounts for total effect of exposure on outcome effect
+
+  # this function can run either of two method, depending on what MO data df you supply 
+  
+  # method 1
+  # INDIRECT = TOTAL (exposure -> mediator) x TOTAL (mediator -> outcome)
+  # method 2
+  # INDIRECT = TOTAL (exposure -> mediator) x DIRECT (of mediator , mvmr) 
+  
+  
+  # calculate indirect effect beta
+  EO_beta <- EM_beta * MO_beta
+  
+  if (verbose) {print(paste("Indirect effect = ", round(EM_beta, 2)," x ", round(MO_beta,2), " = ", round(EO, 3)))}
+  
+  
+  # calculate SE of indirect effect 
+  ### using propagation of errors method
+  # SE of INDIRECT effect (difference) = sqrt(SE EM^2 + SE MO^2) 
+  EO_se = round(sqrt(EM_se^2 + MO_se^2), 4)
+  if (verbose) {print(paste("SE of indirect effect = sqrt(",
+                            round(EM_se, 2),"^2 + ", round(MO_se,2), 
+                            "^2) = ", indirect_se))}
+  
+  
+  # put data into a tidy df
+  df <-data.frame(b= EO_beta,
+                  se = EO_se)
+  
+  # calculate CIs and OR
+  df$lo_ci    <- df$b - 1.96 * df$se
+  df$up_ci    <- df$b + 1.96 * df$se
+  df$or        <-  exp(df$b)
+  df$or_lci95 <- exp(df$lo_ci)
+  df$or_uci95 <- exp(df$up_ci)
+  
+  df<-round(df,3)
+  return(df)
+}
+```
+
+```{r}
+#### Raw Sobel test -- proof it's what RMediation does.
+#a=EM_beta
+#b=MO_beta
+#sa=EM_se
+#sb=MO_se
+#
+#sobel_se = sqrt((b^2*sa^2) + (a^2*sb^2))
+#lo_ci    <- -0.01629558 - 1.96 * 0.007501268
+#up_ci    <- -0.01629558 + 1.96 * 0.007501268
+```
+
+# Load data for all mediators and store all required betas for mediation analysis in a df
+
+```{r, message=F}
+# mediators to load
+trait_caterogies <- c("hormones",  "reproductive_traits", "glycemic_traits")
+mediators_df <- data_lookup %>%
+  filter(trait_category %in% trait_caterogies) %>%
+  filter(!is.na(source) | !is.na(mrbase.id)) %>% 
+  select(trait_file_name, trait, trait_category) %>% 
+  filter(!(grepl("oestradiol|homa-ir", trait_file_name))) # not enough IVs
+
+# storage df
+collect_betas <-data.frame(matrix(ncol=9,
+                dimnames=list(NULL, c("mediator_name",
+                                      "total_exposure_beta","total_exposure_se",
+                                      "total_mediator_beta", "total_mediator_se",
+                                      "direct_exposure_beta", "direct_exposure_se",
+                                      "direct_mediator_beta", "direct_mediator_se"))))
+
+for (mediator in mediators_df$trait_file_name){
+  
+  # load all required files for each mediator in the loop
+  mediator_name <- mediators_df %>% filter(trait_file_name == mediator) %>% pull(trait)
+  current_trait_category <- mediators_df %>% filter(trait_file_name == mediator) %>% pull(trait_category)
+  
+  # results from step 1
+  bmi_mediator <- read_tsv(paste0(results_path, current_trait_category,
+                                  "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv")) %>%
+                  filter(outcome == mediator_name, exposure == "Childhood BMI")
+  
+  # results from step 2                          
+  mediator_bc <- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_mediators_",
+                                 current_trait_category,"-to-BCAC_", bc_data,".tsv")) %>% 
+                 filter(method %in% c("Inverse variance weighted", "Wald ratio")) %>% 
+                 filter(exposure == mediator_name )
+  # results from mvmr  
+  filename <- list.files(path = paste0(results_path, current_trait_category, "/", mediator, "/"), 
+                       pattern = "mvmr_earlyBMI*", full.names = T)
+  # specify which BC type
+  filename <- filename[grepl(bc_data, filename)]
+  # specify to use 2SMR resulrs
+  filename <- filename[!grepl("using_MVMR", filename)]
+  # if several files, pick last one
+  if (length(filename)>1) {filename<-filename[-1]}
+  mvmr <- read_tsv(filename)
+  
+  # store all required data in a vector
+  mediator_data<- c(mediator_name,
+                    bmi_mediator %>% pull(b)%>% as.numeric(),
+                    bmi_mediator %>% pull(se)%>% as.numeric(),
+                    mediator_bc %>% pull(b)%>% as.numeric(),
+                    mediator_bc %>% pull(se)%>% as.numeric(),
+                    mvmr %>% filter(exposure == "Childhood BMI" )%>% pull(b),
+                    mvmr %>% filter(exposure == "Childhood BMI" )%>% pull(se),
+                    mvmr %>% filter(exposure != "Childhood BMI")%>% pull(b),
+                    mvmr %>% filter(exposure != "Childhood BMI")%>% pull(se) ) 
+  
+  # add to storage df
+  collect_betas<-rbind(collect_betas, mediator_data) %>% drop_na()
+  print(paste0("Done ", mediator_name))
+}
+
+# make sure values are in numeric format
+collect_betas <- collect_betas %>%
+  mutate_at(vars(-mediator_name), function(x) as.numeric(as.character(x)))
+
+```
+
+
+# Run mediation analysis (3 types) on mediators with collected betas. 
+```{r, echo=F}
+
+# results storage df
+mediation_results <- data.frame(matrix(ncol=22,
+                dimnames=list(NULL, 
+                              c("mediator_name",
+                                "product_method_v1_beta", "product_method_v1_se",
+                                "product_method_v1_lo_ci95", "product_method_v1_up_ci95",
+                                "product_method_v1_or", "product_method_v1_or_lci95", "product_method_v1_or_uci95",
+                                "product_method_v2_beta", "product_method_v2_se",
+                                "product_method_v2_lo_ci95", "product_method_v2_up_ci95",
+                                "product_method_v2_or", "product_method_v2_or_lci95", "product_method_v2_or_uci95",
+                                "difference_method_beta", "difference_method_se", 
+                                "difference_method_lo_ci95", "difference_method_up_ci95", 
+                                "difference_method_or", "difference_method_or_lci95", "difference_method_or_uci95"))))
+
+# loop ti run mediation
+for (mediator in collect_betas$mediator_name){
+  
+  collect_betas_sub<-collect_betas %>%  filter(mediator_name == mediator)
+  
+  # product method, v1
+  #prod_output1 <- product_method(EM_beta = collect_betas_sub$total_exposure_beta,
+  #                               EM_se =   collect_betas_sub$total_exposure_se,
+  #                               MO_beta = collect_betas_sub$total_mediator_beta,
+  #                               MO_se =   collect_betas_sub$total_mediator_se,
+  #                               verbose = F)
+  
+  # product method, v2, using propagation method for SE
+  prod_output1 <- product_method_v2(EM_beta = collect_betas_sub$total_exposure_beta,
+                                 EM_se =   collect_betas_sub$total_exposure_se,
+                                 MO_beta = collect_betas_sub$direct_mediator_beta,
+                                 MO_se =   collect_betas_sub$direct_mediator_se,
+                                 verbose = F)
+  
+  # product method, v2
+  prod_output2 <- product_method(EM_beta = collect_betas_sub$total_exposure_beta,
+                                 EM_se =   collect_betas_sub$total_exposure_se,
+                                 MO_beta = collect_betas_sub$direct_mediator_beta,
+                                 MO_se =   collect_betas_sub$direct_mediator_se,
+                                 verbose = F)
+  # difference method
+  diff_output <- difference_method(total_beta = exposure_total_beta,
+                                   total_se = exposure_total_se, 
+                                   direct_beta = collect_betas_sub$direct_exposure_beta, 
+                                   direct_se = collect_betas_sub$direct_exposure_se,
+                                   verbose = T)
+
+
+
+  # store results required data in a vector
+  mediation_results_sub <- c(mediator,
+                            prod_output1$b, prod_output1$se,
+                            prod_output1$lo_ci,  prod_output1$up_ci, 
+                            prod_output1$or, prod_output1$or_lci95, prod_output1$or_uci95,
+                            prod_output2$b, prod_output2$se,
+                            prod_output2$lo_ci,  prod_output2$up_ci, 
+                            prod_output2$or, prod_output2$or_lci95, prod_output2$or_uci95,
+                            diff_output$b, diff_output$se,
+                            diff_output$lo_ci, diff_output$up_ci,
+                            diff_output$or, diff_output$or_lci95, diff_output$or_uci95)
+  
+
+  # add to results storage df
+  mediation_results<- rbind(mediation_results, mediation_results_sub) %>% drop_na()
+  print(paste0("Done ", mediator))
+  
+}  
+# make sure values are in numeric format
+mediation_results <- mediation_results %>%
+  mutate_at(vars(-mediator_name), function(x) as.numeric(as.character(x)))
+
+mediation_results %>% 
+  mutate(prod_v1_v2 = abs(product_method_v1_beta - product_method_v2_beta) )%>% 
+  mutate(prod_v2_diff = abs(product_method_v2_beta - difference_method_beta)) %>% 
+  write_tsv(paste0(results_path, "_merged_results/mediation_analysis_results_BCAC_", bc_data,"_otherSE.tsv"))
+```
+
+
+
+### Note on mediation analysis with binary outcomes
+from _Burgess et al 2017_
+
+If all variables are continuous, and all relationships between variables are linear, then the total effect is equal to the direct effect plus the indirect effect.
+But it is common for the outcome in a MR investigation to be a binary variable, such as disease status. In this case, typically genetic associations are obtained from logistic regression, and represent log odds ratios. Odds ratios are noncollapsible, meaning that they do not average intuitively, and they depend on the choice of covariate adjustment even in the absence ofconfounding. This means that differences between causal estimates from Difference and Product methods may arise due to _non-collapsibility_ rather than mediation. In practice,  we would recommend providing estimates of the total and direct effects, but not the indirect effect, as calculation of the indirect effect relies on the linearity of the relationships that cannot occur with a binary outcome. The total and direct effects still have interpretations as population-averaged causal effects (conditional on the mediator for the direct effect), representing the average change in the outcome resulting from intervening on the population distribution of the risk factor (while keeping the mediator constant for the direct effect). Substantial differences between these estimates would still be informative about the causal pathway from the risk factor to the outcome.
+
+
+
+# Prepare data for plotting
+```{r message=F}
+
+
+mediation_results <-  read_tsv(paste0(results_path, "_merged_results/mediation_analysis_results_BCAC_", bc_data,"_otherSE.tsv"))
+
+
+mediation_results <- mediation_results %>% 
+              filter(mediator_name %in% 
+                      c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
+                      "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
+                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B", "HOMA-IR")) %>% 
+              mutate(mediator_name = ifelse(!grepl("Testosterone ", mediator_name), 
+                                       gsub(" \\(.*\\)", "", mediator_name), mediator_name)) %>% 
+              mutate(mediator_name = case_when(mediator_name == "fasting insulin" ~ "Fasting Insulin",
+                                         mediator_name == "fasting glucose" ~ "Fasting Glucose",
+                                         mediator_name == "IGF" ~ "IGF-1",
+                                         TRUE ~ mediator_name))
+
+# subset only to prioritised data
+mediation_results <- mediation_results %>% 
+  filter(mediator_name %in% c("IGF-1", "Testosterone (bioavailable)" ,"Testosterone (free)" , "Testosterone (total)" ,
+                                           "Age at menarche" , "Age at menopause") )
+
+
+
+```
+
+
+```{r}
+## PLOT OF BETA POINT ESTIMATES
+
+# convert to long format
+mediation_results_long <- mediation_results %>%
+  select("mediator_name","product_method_v1_beta" , "product_method_v2_beta" , "difference_method_beta") %>% 
+  pivot_longer(cols = c( "product_method_v1_beta" , "product_method_v2_beta" , "difference_method_beta"), names_to = "mediation_type", values_to = "indirect_beta")
+
+# set the order in which they apper in th eplot
+mediation_results_long$mediator_name <- factor(mediation_results_long$mediator_name ,
+                               levels = rev(c("IGF-1", "SHBG", "Testosterone (bioavailable)", "Testosterone (free)",  "Testosterone (total)" , "Age at first live birth" , "Age at menarche", "Age at menopause" ,  "Number of births", "Fasting Glucose", "Fasting Insulin", "HBa1c", "HOMA-B", "Age 10 height"  )))
+
+# add nice names
+mediation_results_long <- mediation_results_long %>% 
+  mutate(mediation_type= case_when(mediation_type == "product_method_v1_beta" ~ "Product method V1",
+                                  mediation_type == "product_method_v2_beta" ~ "Product method V2",
+                                  mediation_type == "difference_method_beta" ~ "Difference method", 
+                                  TRUE ~ mediation_type))
+
+# only display v2 of product method
+mediation_results_long <- mediation_results_long %>% 
+  mutate(mediation_type= case_when(mediation_type == "Product method V2" ~ "Product method",
+                                   TRUE ~ mediation_type)) %>% 
+  filter(mediation_type!= "Product method V1")
+                                   
+                                   
+p<-ggplot(mediation_results_long,
+           aes(y=mediator_name, x=indirect_beta, label=mediation_type , group = mediation_type, colour=mediation_type)) +
+  geom_point(size=4, shape=20)+
+  #scale_color_manual(values=pal)+
+  theme_minimal_grid(9) +
+  geom_vline(xintercept=0, linetype=3) +
+  theme(strip.text = element_text(face = 'bold'))+
+  labs(color = "",y = "", x = "Effect size (beta)", 
+       subtitle="                   estimated using two mediation analysis methods: ",
+       title= "              Mediation analysis: indirect effect of childhood BMI via mediator" )+
+  theme(legend.position = "top",  plot.title.position = "plot")
+
+ggsave(paste0("figures/mediation_analysis_BCAC_", bc_data,".png"),
+       plot=p, scale=1.2, 
+       width=14, height=12,
+       units=c("cm"), dpi=300, limitsize=F)
+```
+
+
+```{r}
+
+## PLOT OF betas WITH CIs
+  
+mediation_results_long <- mediation_results %>%
+  select("mediator_name", !contains(c("or", "se"))) %>%  
+  pivot_longer(cols = c( "product_method_v1_beta" , "product_method_v2_beta" , "difference_method_beta"), names_to = "beta", values_to = "indirect_beta") %>%
+  pivot_longer(cols = c( "product_method_v1_lo_ci95" , "product_method_v2_lo_ci95" , "difference_method_lo_ci95"), names_to = "lo_ci95", values_to = "indirect_lo_ci95") %>% 
+  pivot_longer(cols = c( "product_method_v1_up_ci95" , "product_method_v2_up_ci95" , "difference_method_up_ci95"), names_to = "up_ci95", values_to = "indirect_up_ci95") %>% 
+  mutate(beta = gsub("_beta", "", beta)) %>% 
+  mutate(lo_ci95 = gsub("_lo_ci95", "", lo_ci95)) %>%
+  mutate(up_ci95 = gsub("_up_ci95", "", up_ci95)) %>% 
+  mutate(method = ifelse(beta == lo_ci95 & lo_ci95 == up_ci95, 1, 0)) %>% 
+  filter(method == 1) %>% 
+  select(-lo_ci95, -up_ci95, -method) %>% 
+  dplyr::rename("mediation_type" = "beta") %>% 
+  mutate(mediation_type= case_when(mediation_type == "product_method_v1" ~ "Product method V1",
+                                  mediation_type == "product_method_v2" ~ "Product method V2",
+                                  mediation_type == "difference_method" ~ "Difference method", 
+                                  TRUE ~ mediation_type))
+  
+
+# set the order in which they apper in th eplot
+mediation_results_long$mediator_name <- factor(mediation_results_long$mediator_name ,
+                               levels = rev(c("IGF-1", "SHBG", "Testosterone (bioavailable)", "Testosterone (free)",  "Testosterone (total)" , "Age at first live birth" , "Age at menarche", "Age at menopause" ,  "Number of births", "Fasting Glucose", "Fasting Insulin", "HBa1c", "HOMA-B", "Age 10 height"  )))
+
+
+# only display v2 of product method
+mediation_results_long_out <- mediation_results_long %>% 
+  mutate(standard_error= ifelse(mediation_type == "Product method V2","Delta method",
+                         ifelse(mediation_type == "Product method V1" , "Propagation of errors",
+                         ifelse(mediation_type == "Difference method" , "Propagation of errors", NA)))) %>% 
+  mutate(mediation_type= ifelse(mediation_type == "Product method V2" ,"Product method ",
+                         ifelse(mediation_type == "Product method V1" , "Product method",
+                         ifelse(mediation_type == "Difference method" , "Difference method",
+                                mediation_type)))) 
+  #filter(mediation_type!= "Product method V1")
+pal<-wesanderson::wes_palette("Darjeeling1")[c(2,4,4)]
+
+
+# NB this is a heavily modified version for pulication
+b1<-ggplot(mediation_results_long_out,
+           aes(y=mediator_name, x=indirect_beta, 
+               label=mediation_type , group = mediation_type, colour=mediation_type, shape=standard_error)) +
+  geom_vline(xintercept=0, linetype=2, color= "grey50") +
+  geom_point(size=2, 
+             position = ggstance::position_dodgev(height = 0.5))+
+  geom_errorbarh(aes(xmin=indirect_lo_ci95, xmax=indirect_up_ci95), height=.2, 
+            position = ggstance::position_dodgev(height = 0.5)) +
+  theme_minimal_grid(11) +
+  #scale_color_manual(values=c("#F8766D","#00BFC4", "#00BFC4"))+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(20,18)) +
+  theme(strip.text = element_text(face = 'bold'),
+        panel.grid.major.y = element_blank())+
+  scale_x_continuous(breaks=seq(-0.2,0.2,0.1))+
+
+  labs(color = "Mediation method",
+       shape = "Standard error method",
+       y = "", x = "Effect size (beta)", 
+       subtitle="                   estimated using two mediation analysis methods: ",
+       title= "              Mediation analysis: indirect effect of childhood BMI via mediator" )+
+  theme(legend.position = "right",  plot.title.position = "plot")+
+  guides(color = guide_legend(order=1),
+         shape = guide_legend(order=2))
+
+ggsave(paste0("figures/mediation_analysis_BCAC_", bc_data,"_SEdiff.png"),
+       plot=b1, scale=1.2, 
+       width=14, height=9,
+       units=c("cm"), dpi=300, limitsize=F)
+
+
+b2<-ggplot(mediation_results_long_out,
+           aes(y=mediator_name, x=indirect_beta, 
+               label=mediation_type , group = mediation_type, colour=mediation_type)) +
+  geom_point(size=3, shape=20, 
+             position = ggstance::position_dodgev(height = 0.5))+
+  geom_errorbarh(aes(xmin=indirect_lo_ci95, xmax=indirect_up_ci95), height=.1, 
+            position = ggstance::position_dodgev(height = 0.5)) +
+  theme_minimal_grid(9) +
+  #scale_color_manual(values=pal)+
+  geom_vline(xintercept=0, linetype=3) +
+  facet_wrap(~mediation_type, ncol=1)+
+  scale_x_continuous(breaks=seq(-0.2,0.4,0.1))+
+  theme(strip.text = element_text(face = 'bold'))+
+  labs(color = "",y = "", x = "Effect size (beta)", 
+       subtitle="                   estimated using two mediation analysis methods: ",
+       title= "              Mediation analysis: indirect effect of childhood BMI via mediator" )+
+  theme(legend.position = "none",  plot.title.position = "plot")
+
+
+
+## PLOT OF ODDS RATIOS WITH CIs
+
+mediation_results_long <- mediation_results %>%
+  select("mediator_name", contains("or") ) %>%  
+  pivot_longer(cols = c( "product_method_v1_or" , "product_method_v2_or" , "difference_method_or"), names_to = "or", values_to = "indirect_OR") %>%
+  pivot_longer(cols = c( "product_method_v1_or_lci95" , "product_method_v2_or_lci95" , "difference_method_or_lci95"), names_to = "or_lci95", values_to = "indirect_OR_lci95") %>% 
+  pivot_longer(cols = c( "product_method_v1_or_uci95" , "product_method_v2_or_uci95" , "difference_method_or_uci95"), names_to = "or_uci95", values_to = "indirect_OR_uci95") %>% 
+  mutate(or = gsub("_or", "", or)) %>% 
+  mutate(or_lci95 = gsub("_or_lci95", "", or_lci95)) %>%
+  mutate(or_uci95 = gsub("_or_uci95", "", or_uci95)) %>% 
+  mutate(method = ifelse(or == or_lci95 & or_lci95 == or_uci95, 1, 0)) %>% 
+  filter(method == 1) %>% 
+  select(-or_lci95, -or_uci95, -method) %>% 
+  rename("mediation_type" = "or") %>% 
+  mutate(mediation_type= case_when(mediation_type == "product_method_v1" ~ "Product method V1",
+                                  mediation_type == "product_method_v2" ~ "Product method V2",
+                                  mediation_type == "difference_method" ~ "Difference method", 
+                                  TRUE ~ mediation_type))
+  
+
+# set the order in which they apper in th eplot
+mediation_results_long$mediator_name <- factor(mediation_results_long$mediator_name ,
+                               levels = rev(c("IGF-1", "SHBG", "Testosterone (bioavailable)", "Testosterone (free)",  "Testosterone (total)" , "Age at first live birth" , "Age at menarche", "Age at menopause" ,  "Number of births", "Fasting Glucose", "Fasting Insulin", "HBa1c", "HOMA-B", "Age 10 height"  )))
+
+
+
+
+b<-ggplot(mediation_results_long,
+           aes(y=mediator_name, x=indirect_OR, 
+               label=mediation_type , group = mediation_type, colour=mediation_type)) +
+  geom_point(size=3, shape=20, position = ggstance::position_dodgev(height = 1))+
+  geom_errorbarh(aes(xmin=indirect_OR_lci95, xmax=indirect_OR_uci95), height=.3, position = ggstance::position_dodgev(height = 1)) +
+  theme_minimal_grid(9) +
+  #scale_color_manual(values=pal)+
+
+  theme(strip.text = element_text(face = 'bold'),
+        panel.grid.major.y = element_blank())+
+  labs(color = "",y = "", x = "Odds ratio", 
+       subtitle="                   estimated using three mediation analysis methods: ",
+       title= "              Mediation analysis: indirect effect of childhood BMI via mediator" )+
+  theme(legend.position = "top",  plot.title.position = "plot")
+
+
+
+
+ggplot(mediation_results_long, aes(x = indirect_OR, y = mediator_name))+
+  theme_forest() + 
+  scale_colour_ng_d() + scale_fill_ng_d() + # nightingale colours
+    geom_stripes() +
+  geom_effect(aes(xmin = indirect_OR_lci95, xmax = indirect_OR_uci95, 
+    colour = mediation_type), 
+    position = ggstance::position_dodgev(height = 0.5)) 
+
+
+
+```
+
+
+```{r}
+# install.packages("tidyverse")
+library(tidyverse)
+library(ggforestplot)
+
+# Get subset of example, linear associations, data frame
+df_linear <-
+  ggforestplot::df_linear_associations %>%
+  dplyr::arrange(name) %>%
+  dplyr::filter(dplyr::row_number() <= 30)
+
+# Forestplot
+forestplot(
+  df = df_linear,
+  estimate = beta,
+  logodds = FALSE,
+  colour = trait,
+  title = "Associations to metabolic traits",
+  xlab = "1-SD increment in cardiometabolic trait
+  per 1-SD increment in biomarker concentration"
+)
+```
+```{r}
+ggplot(df_linear, aes(x = beta, y = name))+
+  theme_forest() + scale_colour_ng_d() + scale_fill_ng_d() + 
+    geom_stripes() 
+
++ geom_vline(xintercept = ifelse(test = logodds, 
+    yes = 1, no = 0), linetype = "solid", size = 0.4, colour = "black")
+```
+

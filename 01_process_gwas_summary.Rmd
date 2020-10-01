@@ -1,0 +1,140 @@
+---
+title: "Format data and extract instruments"
+author: "Marina Vabistsevits"
+date: "21/05/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(vroom)
+library(dplyr)
+library(TwoSampleMR)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("set_paths.R")
+set_paths(currently_working_env)
+
+# metadata file that is itiratelely read in and updated
+data_lookup<-paste0("metadata/data_lookup.csv")
+
+# functions
+source("functions.R")
+```
+
+
+```{r}
+# supl functions
+
+read_and_format <-function(file_gwas, data_version="ieu_gwas_pipeline"){
+  # different versions of data formats to read in
+  if (data_version == "ieu_gwas_pipeline"){
+    # data produced by IEU GWAS pipeline
+    out <-vroom(file_gwas,
+          col_select = c("SNP","BETA","SE","ALLELE1","ALLELE0","A1FREQ","P_BOLT_LMM_INF")) %>% 
+               format_data(., type="outcome",
+                              snp_col = "SNP",
+                              beta_col = "BETA",
+                              se_col = "SE",
+                              effect_allele_col = "ALLELE1",
+                              other_allele_col = "ALLELE0",
+                              eaf_col = "A1FREQ",
+                              pval_col = "P_BOLT_LMM_INF")
+
+  } else if (data_version == "Lagou2019"){
+     # format of Lagou2019 data from MAGIC coonsortium
+    out <- vroom(file_gwas,
+          col_select = c("snp","effect_allele","other_allele","eaf_hapmap_CEU",
+                          "female_beta", "female_se" ,"female_pvalue")) %>% 
+            format_data(., type="outcome",
+                            snp_col = "snp",
+                            beta_col = "female_beta",
+                            se_col = "female_se",
+                            effect_allele_col = "effect_allele",
+                            other_allele_col = "other_allele",
+                            eaf_col = "eaf_hapmap_CEU",
+                            pval_col = "female_pvalue")
+    
+  } else if (data_version == "Wheeler2017"){
+   # format of Wheeler2017 data from MAGIC coonsortium
+   out <- vroom(file_gwas,
+              col_select = c("snp","effect_allele","other_allele","eaf_hapmap_CEU",
+                                             "beta", "stderr" ,"pvalue")) %>% 
+                format_data(., type="outcome",
+                                snp_col = "snp",
+                                beta_col = "beta",
+                                se_col = "stderr",
+                                effect_allele_col = "effect_allele",
+                                other_allele_col = "other_allele",
+                                eaf_col = "eaf_hapmap_CEU",
+                                pval_col = "pvalue")
+  }
+
+  return(out)
+}
+
+extract_tophits <- function(outcome_gwas){
+    outcome_gwas %>%
+      filter(pval.outcome < 5e-8) %>% 
+      convert_outcome_to_exposure() %>% 
+      # using local reference
+      #clump_data_local(., local_path)
+      # using MR-base API
+      clump_data(., clump_r2 = 0.001)
+}
+```
+
+```{r}
+# specify the source of full summary stats GWAS file
+data_source <- "ieu_gwas_pipeline" # ieu_gwas_pipeline / Lagou2019 / Wheeler2017
+traits <- read_csv(data_lookup) %>% filter(source == data_source) %>% pull(trait)
+```
+
+# Process every file in a standard way: 
+# - Format GWAs data into outcome format and save as `GWAS_tidy_outcome.txt.gz`
+# - Extract instruments and save as `tophits.tsv`
+
+```{r message=F}
+
+tidy_gwas <- "_GWAS_tidy_outcome.txt.gz"
+tidy_tophits <- "_tophits.tsv"
+
+for (current_trait in traits) {
+
+  gwas_filename<- read_csv(data_lookup) %>% filter(trait == current_trait) %>% pull(original_file)
+  file_gwas <- paste0(data_path_gwas_raw, gwas_filename)
+
+  print(paste0("Processing: ", current_trait, ", ", gwas_filename))
+  gwas_outcome_format<-read_and_format(file_gwas, data_version = data_source)
+  gwas_outcome_format$outcome <- current_trait
+  print("   -> finished formatting")
+  
+  data_name <- paste0(read_csv(data_lookup) %>% filter(trait == current_trait) %>% pull(trait_file_name))
+  print(paste0("Saving tidy GWAS outcome file to: ", data_path_gwas, data_name, tidy_gwas))
+  vroom_write(gwas_outcome_format, paste0(data_path_gwas, data_name, tidy_gwas ))
+  
+  print("Extracting tophits")
+  #gwas_outcome_format<-vroom(paste0(data_path_gwas, data_name, tidy_gwas )) # if need to run from here
+  tophits <- extract_tophits(gwas_outcome_format)
+  if (!exists("tophits")) { stop("Extarcting instruments failed!")}
+  print(paste0("Found ", dim(tophits)[1], " SNPs at < 5e-8"))
+  write_tsv(tophits, paste0(data_path_tophits, data_name, tidy_tophits))
+  print("Saved tophits file")
+  
+  rm(gwas_outcome_format)
+  rm(tophits)
+  # update lookup file
+  read_csv(data_lookup) %>% 
+    mutate(full_data = ifelse(trait == current_trait, paste0(data_name, tidy_gwas), full_data)) %>%
+    mutate(tophits_data = ifelse(trait == current_trait, paste0(data_name, tidy_tophits), tophits_data)) %>% 
+    mutate(format = ifelse(trait == current_trait, "tsv", format)) %>% 
+    write_csv(data_lookup)
+  print("Updated data lookup file")
+}                       
+```
+

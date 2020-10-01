@@ -1,0 +1,362 @@
+---
+title: "Extract instruments from GWAScatalog"
+author: "Marina Vabistsevits"
+date: "18/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(MRInstruments)
+library(TwoSampleMR)
+library(readr)
+library(tidyr)
+library(dplyr)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("../set_paths.R")
+set_paths(currently_working_env)
+
+```
+
+# Collect data for trait "Breast size"
+
+```{r}
+# load gwas cat
+data(gwas_catalog)
+breast_size_gwas <- gwas_catalog %>% 
+  filter(grepl( "Breast size", Phenotype_simple)) %>% 
+  filter(grepl("European", Initial_sample_description)) %>% 
+  filter(!is.na(beta)) %>% 
+  select(-c("MAPPED_TRAIT_EFO", "MAPPED_TRAIT_EFO_URI", "Replication_sample_description",  "Phenotype_info", "chr" , 
+            "bp_ens_GRCh38" , "Region", "Gene_ens" , "date_added_to_MRBASE"  ))
+```
+
+There are two studies with different sample sizes, so we are going to process them separately
+
+
+## **Study 1, Pickrell JK 2016**
+
+```{r}
+breast_size_gwas_study1 <- breast_size_gwas %>% 
+  filter(Author =="Pickrell JK") 
+# this data is missing alleles, so I checked if this study published supl data. they did!
+
+# load data from supl data of this study to help data from MRBase/GWAScat
+study1_data<-read_csv(paste0(data_path_tophits_raw, "breastsizeGWAS_tophits_Pickrell2016.csv"))
+# compare betas
+full_join(breast_size_gwas_study1[,c("SNP", "beta", "pval")],
+                 study1_data[, c("SNP", "allele0", "allele1", "effect", "pvalue")],
+                 by = "SNP") %>% 
+      mutate(effect_check=ifelse(beta == effect, 1, 0)) %>% View()
+# looks like the data matched by SNPs and betas, so I'm going to update alleles in gwasdata
+
+breast_size_gwas_study1<-breast_size_gwas_study1 %>% 
+                            select(-c("effect_allele", "other_allele")) %>% 
+                            left_join(., study1_data[,c("SNP", "allele0", "allele1")],
+                                      by="SNP") %>% 
+                            rename("other_allele"="allele0",
+                                   "effect_allele"="allele1")
+
+# going to switch all units and betas to be 'increase' + flip alleles
+## POSSIBLY this is not needed. But if I don't do it, there will be 2 exposures, and we don't want that
+breast_size_gwas_study1 <- breast_size_gwas_study1 %>%
+          mutate(beta=ifelse(units=="unit decrease", beta * -1, beta)) %>% 
+          mutate(other_allele=ifelse(units=="unit decrease", effect_allele, other_allele)) %>% 
+          mutate(effect_allele=ifelse(units=="unit decrease", other_allele, effect_allele)) %>% 
+          mutate(units=ifelse(units=="unit decrease", "unit increase", "unit increase")) 
+
+
+# format data
+breast_size_gwas_study1_tidy <- format_data(breast_size_gwas_study1) %>% 
+                                filter(pval.exposure < 5e-8) %>% 
+                                clump_data() # 10
+breast_size_gwas_study1_tidy$exposure <- "Breast size (Pickrell 2016)"
+
+# save to be used in MR in other script
+write_tsv(breast_size_gwas_study1_tidy, paste0(data_path_tophits, "breast_size_pickrell_tophits.tsv"))
+```
+
+
+## **Study 2, Eriksson N 2012**
+
+
+```{r}
+breast_size_gwas_study2 <- breast_size_gwas %>% 
+  filter(Author =="Eriksson N") 
+# this study is missing some alleles, so we are going to check if there is any supl data from the authors. there is!
+
+
+# load data from supl data of thos study to help data from MRBase/GWAScat
+study2_data<-read_csv(paste0(data_path_tophits_raw, "breastsizeGWAS_tophits_Eriksson2012.csv")) %>% 
+             separate(allele, into=c('allele0', 'allele1'), sep="/", remove=T)
+# compare betas and alleles
+full_join(breast_size_gwas_study2[,c("SNP", "beta", "pval","units", "other_allele", "effect_allele")],
+          study2_data[, c("SNP", "allele0", "allele1", "beta")],
+          by = "SNP") %>% 
+  mutate(effect_check=ifelse(beta.x == beta.y, 1, 0)) %>% View()
+# the SNPs that are in MRbase match perfectly to the data. So we can copy the missing alleles from it:
+
+breast_size_gwas_study2<-breast_size_gwas_study2 %>% 
+        select(-c("effect_allele", "other_allele")) %>% 
+        left_join(., study2_data[,c("SNP", "allele0", "allele1")],
+                  by="SNP") %>% 
+        rename("other_allele"="allele0",
+               "effect_allele"="allele1")
+
+
+# NOW we can switch all units and betas to be 'increase' + flip alleles
+## POSSIBLY this is not needed. But if I don't do it, there will be 2 exposures, and we don't want that
+breast_size_gwas_study2 <- breast_size_gwas_study2 %>%
+  mutate(beta=ifelse(units=="cup size decrease", beta * -1, beta)) %>% 
+  mutate(other_allele=ifelse(units=="cup size decrease", effect_allele, other_allele)) %>% 
+  mutate(effect_allele=ifelse(units=="cup size decrease", other_allele, effect_allele)) %>% 
+  mutate(eaf=ifelse(units=="cup size decrease", 1-eaf, eaf)) %>% 
+  mutate(units=ifelse(units=="cup size decrease", "cup size increase", "cup size increase")) 
+
+# format data
+breast_size_gwas_study2_tidy <- format_data(breast_size_gwas_study2) %>% 
+                                filter(pval.exposure < 10e-8) %>% 
+                                clump_data() # 6
+breast_size_gwas_study2_tidy$ exposure <- "Breast size (Eriksson2012)"
+
+# save to be used in MR in other script
+write_tsv(breast_size_gwas_study2_tidy, paste0(data_path_tophits, "breast_size_eriksson_tophits.tsv"))
+
+```
+
+## **Study 3, Ooi 2019**
+
+```{r}
+# this data is not in GWAS cat, but going to process it here anyway (from supl data)
+
+# load data from supl data of thos sudy to help data from MRBase/GWAScat
+study3_data<-read_csv(paste0(data_path_tophits_raw, "breastsizeGWAS_tophits_Ooi2019.csv"))
+# compare betas
+
+# format data
+study3_data_tidy <- study3_data %>% 
+                      format_data() %>% 
+                      filter(pval.exposure < 5e-8) %>% 
+                      clump_data() # 7
+
+study3_data_tidy$exposure <- "Breast size (Ooi 2019)"
+
+# save to be used in MR in other script
+write_tsv(study3_data_tidy, paste0(data_path_tophits, "breast_size_ooi_tophits.tsv"))
+```
+
+
+## Compare studies
+```{r}
+
+# get SNPs measured in both studies
+same_SNPs <- breast_size_gwas %>% count(SNP) %>% filter(n==2) %>% pull(SNP)
+
+breast_size_gwas_study1_tidy %>% filter(SNP%in% same_SNPs) %>% select(SNP,beta.exposure, pval.exposure, other_allele.exposure, effect_allele.exposure,units.exposure)
+breast_size_gwas_study2_tidy %>% filter(SNP%in% same_SNPs) %>% select(SNP,beta.exposure, pval.exposure, other_allele.exposure, effect_allele.exposure,units.exposure)
+study3_data_tidy  %>% filter(SNP%in% same_SNPs) %>% select(SNP,beta.exposure, pval.exposure, other_allele.exposure, effect_allele.exposure)
+ # looks ok
+```
+
+
+
+
+# Collect data for trait "Mammographic density"
+
+```{r}
+mammo_gwas <- gwas_catalog %>% 
+              filter(grepl( "ammograph", Phenotype_simple)) %>% 
+              #filter(!is.na(beta)) %>% 
+              select(-c("MAPPED_TRAIT_EFO", "MAPPED_TRAIT_EFO_URI", "Replication_sample_description",  "Phenotype_info", "chr" , 
+                        "bp_ens_GRCh38" , "Region", "Gene_ens" , "date_added_to_MRBASE"  ))
+
+mammo_gwas %>% select(Author, PubmedID, Year, units, Phenotype, Initial_sample_description) %>% distinct() %>% View()
+
+```
+
+
+There are several studies, so we are going to process them separately
+
+
+## **Study 1, Stevens 2012**
+
+```{r}
+# the data in GWAS cat is actually terrible for it, so i'm going to use data from supl data right away
+
+study1_data<-read_csv(paste0(data_path_tophits_raw, "mammodensity_Stevens2010.csv")) 
+
+study1_data<-study1_data %>% 
+                mutate(se = beta / Zscore) %>% 
+                filter(Ne > 5000) %>% # sample size?
+                rename("other_allele"="A1",
+                      "effect_allele"="A2",
+                      "eaf" = "MAF") 
+study1_data$Phenotype <- "Percent mammographic density"
+
+study1_data_tidy<- study1_data %>% 
+                        format_data() %>% 
+                        clump_data() #43
+### None are genome-wide significant; not going to proceed with this data
+write_tsv(study1_data_tidy, paste0(data_path_tophits_raw, "mammodensity_Stevens2010_tidy.tsv"))
+```
+
+
+
+## **Study 2, Fernandez 2015**
+
+```{r}
+
+mammo_gwas_study2 <- mammo_gwas %>% 
+  filter(Author =="Fernandez-Navarro P") 
+# this study has only 5 SNPs, so we are going to check if there is any supl data from the authors. there is!
+
+
+# load data from supl data of thos study to help data from MRBase/GWAScat
+study2_data <- read_csv(paste0(data_path_tophits_raw, "mammodensity_Fernandez2015.csv")) %>% 
+               separate(Alleles, into=c('allele0', 'allele1'), sep="/", remove=T) %>% 
+               # calculate beta and se
+               mutate(beta = log(OR)) %>% 
+               mutate(se = (log(CI.uf) - log(CI.lf)) / (1.96*2))
+
+# check if the values match for the 5 SNP that are in GWAS catalog
+left_join(mammo_gwas_study2[,c("SNP", "beta", "se","other_allele", "effect_allele")],
+          study2_data[, c("SNP", "allele0", "allele1", "beta", "se" , "OR")],
+          by = "SNP") %>% View()
+# NB - there is some discrepance in beta direction, but I trust my values from supl data more?
+# in actual GWAS catalog there are only OR (like in supl data), so could something gone wrong with calculation of beta/direction?
+
+
+study2_data<-study2_data %>% 
+                mutate(eaf = MAF/100) %>% 
+                rename("other_allele"="allele0",
+                      "effect_allele"="allele1") 
+
+study2_data$Phenotype <- "Mammographic density"
+
+study2_data_tidy<- study2_data %>%  #183
+                        format_data() %>% 
+                        clump_data() #108
+
+### None are genome-wide significant; not going to proceed with this data
+write_tsv(study2_data_tidy, paste0(data_path_tophits_raw, "mammodensity_Fernandez2015_tidy.tsv"))
+```
+
+
+## **Study 3, Lindstrom 2014**
+
+```{r}
+mammo_gwas_study3 <- mammo_gwas %>% 
+  filter(Author =="Lindstrom S") %>% 
+  filter(Year ==2014) %>% 
+  filter(!is.na(beta))
+
+mammo_gwas_study3 %>% select(SNP, beta, other_allele, effect_allele,eaf, units, Phenotype) %>% View()
+
+# I will convert everything into unit increase
+mammo_gwas_study3 <- mammo_gwas_study3 %>% 
+  mutate(beta=ifelse(units=="unit decrease", beta * -1, beta)) %>% 
+  mutate(effect_allele_upd=ifelse(units=="unit decrease", other_allele, effect_allele)) %>% 
+  mutate(other_allele_upd=ifelse(units=="unit decrease", effect_allele, other_allele)) %>% 
+  select(-c(effect_allele, other_allele)) %>% 
+  rename("other_allele"="other_allele_upd",
+        "effect_allele"="effect_allele_upd") %>% 
+  mutate(eaf=ifelse(units=="unit decrease", 1-eaf, eaf)) %>% 
+  mutate(units=ifelse(units=="unit decrease", "unit increase", "unit increase"))
+
+mammo_gwas_study3_tidy<-format_data(mammo_gwas_study3) %>% ## 11, but 3 types
+                        mutate(exposure = paste(exposure, "(Lindstorm 2014)"))
+
+write_tsv(mammo_gwas_study3_tidy, paste0(data_path_tophits, "mammographic_density_lindstorm_tophits.tsv"))
+
+# NB only have tophits for this data, derived from the paper: https://www.nature.com/articles/ncomms6303#Abs1
+# in supl data only Z-scores are available https://static-content.springer.com/esm/art%3A10.1038%2Fncomms6303/MediaObjects/41467_2014_BFncomms6303_MOESM547_ESM.pdf
+# but I can't work out how to calculate betas from it. 
+# They must have used some non-standard method because I can't even reproduce thier z-scores from betas
+
+```
+
+
+
+```{r}
+# some attempts at calulations
+z =  -7.37
+n= 7600
+p=0.82
+
+
+SE=sqrt(VP/(ES*2pq))
+
+SE= sqrt(1/(7600*2*0.18*0.82))
+Beta=SE*z
+
+Beta
+
+VP: phenotypic variance approximated to 1;
+ES: effective sample size
+pq: allele frequencies (p allele, q allele)
+Z: Z scores
+####
+  
+https://www.biostars.org/p/276869/
+
+There is a paper mentioned conversion of z-statistics back to effect size: https://www.ncbi.nlm.nih.gov/pubmed/27019110. See the online method part. Basically, beta=z/sqrt(2p(1-p)(n+sq(z)) , it requires allele frequency as well as sample size. Hopefully, this might help
+https://static-content.springer.com/esm/art%3A10.1038%2Fng.3538/MediaObjects/41588_2016_BFng3538_MOESM39_ESM.pdf
+
+
+p is the minor allele frequency (MAF) of the SNP, 
+n is the sample size. 
+
+z =  -6.35 
+n= 5677
+p=0.26
+
+denominator= sqrt(  2*p*(1-p)*(n + z^2)  )                                                                                    
+beta= z / denominator                                       
+beta                                          
+```
+
+
+## **Study 4, Brand 2018**
+
+```{r}
+
+# this data is not in GWAS cat, but going to process it here anyway (from supl data)
+
+study4_data<-read_csv(paste0(data_path_tophits_raw, "mammodensity_Brand2018.csv")) 
+
+
+study4_data_tidy<- study4_data %>% 
+                mutate(Phenotype = ifelse(Phenotype == "Percent dense volume", "Percent mammographic density ",
+                                   ifelse(Phenotype == "Absolute dense volume", "Mammographic density (dense area)",
+                                   ifelse(Phenotype == "Absolute non-dense volume", "Mammographic density (non-dense area)", Phenotype)))) %>% 
+                        format_data() %>% 
+                        clump_data() %>% 
+                        mutate(exposure = paste(exposure, "(Brand 2018)"))
+
+write_tsv(study4_data_tidy, paste0(data_path_tophits, "mammographic_density_brand_tophits.tsv"))
+```
+
+
+
+
+
+# Collect data for trait "Leptin"
+
+```{r}
+# load gwas cat
+data(gwas_catalog)
+leptin_gwas <- gwas_catalog %>% 
+  filter(grepl( "leptin", Phenotype_info, ignore.case = T) | grepl( "leptin", Phenotype, ignore.case = T)) %>% 
+  filter(grepl("European", Initial_sample_description)) %>% 
+  filter(!is.na(beta)) %>% 
+  select(-c("MAPPED_TRAIT_EFO_URI", "Replication_sample_description",   "chr" , 
+            "bp_ens_GRCh38" , "Region", "Gene_ens" , "date_added_to_MRBASE"  ))
+
+# SunBB data is same as in MRBase,
+
+# Kilpelainen dat has two groups, + some gender-specific classification - might be interesting to explore
+```

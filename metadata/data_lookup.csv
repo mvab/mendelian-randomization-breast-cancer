@@ -1,0 +1,54 @@
+source,original_file,full_data,tophits_data,trait,format,mrbase.id,trait_file_name,trait_category
+ieu_gwas_pipeline,BMI_10_adj_month_f_imputed.txt.gz,early_bmi_adj_GWAS_tidy_outcome.txt.gz,early_bmi_adj_tophits.tsv,Childhood BMI,tsv,NA,early_bmi_adj,bmi
+NAN,NA,NA,earlyBMI_UKB_tophits.csv,Childhood BMI unadj,csv,NA,early_bmi_unadj,bmi
+ieu_gwas_pipeline,BMI_adult_female.txt.gz,adult_bmi_GWAS_tidy_outcome.txt.gz,adult_bmi_tophits.tsv,Adult BMI,tsv,NA,adult_bmi,bmi
+NA,NA,NA,biotest_female_Ruth2020.csv,Testosterone (bioavailable) Ruth,csv2,NA,testosterone_bioavailable_ruth,hormones
+ieu_gwas_pipeline,biotest_female_invnormal_imputed.txt.gz,testosterone_bioavailable_GWAS_tidy_outcome.txt.gz,testosterone_bioavailable_tophits.tsv,Testosterone (bioavailable),tsv,NA,testosterone_bioavailable,hormones
+ieu_gwas_pipeline,biotest_female_nomeno_invnormal_imputed.txt.gz,testosterone_bioavailable_pre-meno_GWAS_tidy_outcome.txt.gz,testosterone_bioavailable_pre-meno_tophits.tsv,"Testosterone (bioavailable, pre-meno)",tsv,NA,testosterone_bioavailable_pre-meno,hormones
+ieu_gwas_pipeline,biotest_female_meno_invnormal_imputed.txt.gz,testosterone_bioavailable_post-meno_GWAS_tidy_outcome.txt.gz,testosterone_bioavailable_post-meno_tophits.tsv,"Testosterone (bioavailable, post-meno)",tsv,NA,testosterone_bioavailable_post-meno,hormones
+ieu_gwas_pipeline,freetest_female_invnormal_imputed.txt.gz,testosterone_free_GWAS_tidy_outcome.txt.gz,testosterone_free_tophits.tsv,Testosterone (free),tsv,NA,testosterone_free,hormones
+ieu_gwas_pipeline,freetest_female_meno_invnormal_imputed.txt.gz,testosterone_free_pre-meno_GWAS_tidy_outcome.txt.gz,testosterone_free_pre-meno_tophits.tsv,"Testosterone (free, pre-meno)",tsv,NA,testosterone_free_pre-meno,hormones
+ieu_gwas_pipeline,freetest_female_meno_invnormal_imputed.txt.gz,testosterone_free_post-meno_GWAS_tidy_outcome.txt.gz,testosterone_free_post-meno_tophits.tsv,"Testosterone (free, post-meno)",tsv,NA,testosterone_free_post-meno,hormones
+ieu_gwas_pipeline,igf_females_imputed.txt.gz,igf_GWAS_tidy_outcome.txt.gz,igf_tophits.tsv,IGF,tsv,NA,igf,hormones
+ieu_gwas_pipeline,oest_females_imputed.txt.gz,oestradiol_GWAS_tidy_outcome.txt.gz,oestradiol_tophits.tsv,Oestradiol,tsv,NA,oestradiol,hormones
+ieu_gwas_pipeline,oest_meno_imputed.txt.gz,NA,NA,Oestradiol (post-meno),txt,NA,oestradiol_post-meno,hormones
+ieu_gwas_pipeline,oest_no_meno_imputed.txt.gz,NA,oest_no_meno.txt,Oestradiol (pre-meno),txt,NA,oestradiol_pre-meno,hormones
+ieu_gwas_pipeline,shbg_female_imputed.txt.gz,shbg_GWAS_tidy_outcome.txt.gz,shbg_tophits.tsv,SHBG,tsv,NA,shbg,hormones
+NA,NA,NA,shbg_adj_Ruth2020.csv,SHBG adj,csv2,NA,shbg_adj,hormones
+ieu_gwas_pipeline,shbg_meno_imputed.txt.gz,shbg_post-meno_GWAS_tidy_outcome.txt.gz,shbg_post-meno_tophits.tsv,SHBG (post-meno),tsv,NA,shbg_post-meno,hormones
+ieu_gwas_pipeline,shbg_no_meno_imputed.txt.gz,shbg_pre-meno_GWAS_tidy_outcome.txt.gz,shbg_pre-meno_tophits.tsv,SHBG (pre-meno),tsv,NA,shbg_pre-meno,hormones
+ieu_gwas_pipeline,test_meno_imputed.txt.gz,testosterone_post-meno_GWAS_tidy_outcome.txt.gz,testosterone_post-meno_tophits.tsv,Testosterone (post-meno),tsv,NA,testosterone_post-meno,hormones
+ieu_gwas_pipeline,test_no_meno_imputed.txt.gz,testosterone_pre-meno_GWAS_tidy_outcome.txt.gz,testosterone_pre-meno_tophits.tsv,Testosterone (pre-meno),tsv,NA,testosterone_pre-meno,hormones
+NA,NA,NA,totaltest_female_Ruth2020.csv,Testosterone (total) Ruth,csv2,NA,testosterone_total_ruth,hormones
+ieu_gwas_pipeline,totaltest_female_invnormal_imputed.txt.gz,testosterone_total_GWAS_tidy_outcome.txt.gz,testosterone_total_tophits.tsv,Testosterone (total),tsv,NA,testosterone_total,hormones
+ieu_gwas_pipeline,totaltest_female_nomeno_invnormal_imputed.txt.gz,testosterone_total_pre-meno_GWAS_tidy_outcome.txt.gz,testosterone_total_pre-meno_tophits.tsv,"Testosterone (total, pre-meno)",tsv,NA,testosterone_total_pre-meno,hormones
+ieu_gwas_pipeline,totaltest_female_meno_invnormal_imputed.txt.gz,testosterone_total_post-meno_GWAS_tidy_outcome.txt.gz,testosterone_total_post-meno_tophits.tsv,"Testosterone (total, post-meno)",tsv,NA,testosterone_total_post-meno,hormones
+ieu_gwas_pipeline,earlyBMI_female_splitsample_p1_imputed.txt.gz,earlybmi_splitsample_p1_GWAS_tidy_outcome.txt.gz,earlybmi_splitsample_p1_tophits.tsv,Childhood BMI (part1),tsv,NA,earlybmi_splitsample_p1,bmi_splitsample
+ieu_gwas_pipeline,shbg_female_splitsample_p2_imputed.txt.gz,shbg_splitsample_p2_GWAS_tidy_outcome.txt.gz,shbg_splitsample_p2_tophits.tsv,SHBG (part2),tsv,NA,shbg_splitsample_p2,hormones_splitsample
+ieu_gwas_pipeline,igf1_female_splitsample_p2_imputed.txt.gz,igf_splitsample_p2_GWAS_tidy_outcome.txt.gz,igf_splitsample_p2_tophits.tsv,IGF (part2),tsv,NA,igf_splitsample_p2,hormones_splitsample
+ieu_gwas_pipeline,totaltestosterone_female_splitsample_p2_imputed.txt.gz,testosterone_total_splitsample_p2_GWAS_tidy_outcome.txt.gz,testosterone_total_splitsample_p2_tophits.tsv,"Testosterone (total, part2)",tsv,NA,testosterone_total_splitsample_p2,hormones_splitsample
+ieu_gwas_pipeline,totaltestosterone_premeno_female_splitsample_p2_imputed.txt.gz,testosterone_total_premeno_splitsample_p2_GWAS_tidy_outcome.txt.gz,testosterone_total_premeno_splitsample_p2_tophits.tsv,"Testosterone (total, pre-meno, part2)",tsv,NA,testosterone_total_premeno_splitsample_p2,hormones_splitsample
+ieu_gwas_pipeline,totaltestosterone_postmeno_female_splitsample_p2_imputed.txt.gz,testosterone_total_postmeno_splitsample_p2_GWAS_tidy_outcome.txt.gz,testosterone_total_postmeno_splitsample_p2_tophits.tsv,"Testosterone (total, post-meno, part2)",tsv,NA,testosterone_total_postmeno_splitsample_p2,hormones_splitsample
+ieu_gwas_pipeline,biotestosterone_female_splitsample_p2_imputed.txt.gz,testosterone_bioavailable_splitsample_p2_GWAS_tidy_outcome.txt.gz,testosterone_bioavailable_splitsample_p2_tophits.tsv,"Testosterone (bioavailable, part2)",tsv,NA,testosterone_bioavailable_splitsample_p2,hormones_splitsample
+NA,NA,NA,NA,Age at menarche (UKB),mrbase,ukb-b-3768,age_at_menarche_ukb,reproductive_traits
+NA,NA,NA,NA,Age at menarche (Perry),mrbase,ieu-a-1095,age_at_menarche_perry,reproductive_traits
+NA,NA,NA,NA,Age at first live birth (UKB),mrbase,ukb-b-12405,age_at_first_live_birth_ukb,reproductive_traits
+NA,NA,NA,NA,Number of births (UKB),mrbase,ukb-b-1209,number_of_births_ukb,reproductive_traits
+NA,NA,NA,NA,Age at menopause (UKB),mrbase,ukb-b-17422,age_at_menopause_ukb,reproductive_traits
+NA,NA,NA,NA,Age at menopause (Day),mrbase,ieu-a-1004,age_at_menopause_day,reproductive_traits
+NA,NA,NA,NA,fasting insulin (Scott),mrbase,ieu-a-778,fasting_insulin_scott,glycemic_traits
+NA,NA,NA,NA,fasting insulin (Manning),mrbase,ieu-a-775,fasting_insulin_manning,glycemic_traits
+NA,NA,NA,NA,fasting glucose (Scott),mrbase,ieu-a-777,fasting_glucose_scott,glycemic_traits
+NA,NA,NA,NA,fasting glucose (Manning),mrbase,ieu-a-773,fasting_glucose_manning,glycemic_traits
+NA,NA,NA,NA,HOMA-IR,mrbase,ieu-a-771,homa-ir,glycemic_traits
+NA,NA,NA,NA,HOMA-B,mrbase,ieu-a-770,homa-b,glycemic_traits
+NA,NA,NA,NA,HBa1c,mrbase,ieu-a-758,hba1c,glycemic_traits
+Lagou2019,FG_STAGE1_2_3_SEX_GWAS_updated_2019.txt.gz,fasting_glucose_lagou_GWAS_tidy_outcome.txt.gz,fasting_glucose_lagou_tophits.tsv,fasting glucose (Lagou),tsv,NA,fasting_glucose_lagou,glycemic_traits
+Lagou2019,FI_STAGE1_2_3_SEX_GWAS_updated_2019.txt.gz,fasting_insulin_lagou_GWAS_tidy_outcome.txt.gz,fasting_insulin_lagou_tophits.tsv,fasting insulin (Lagou),tsv,NA,fasting_insulin_lagou,glycemic_traits
+Wheeler2017,HbA1c_METAL_European.txt.gz,hba1c_wheeler_GWAS_tidy_outcome.txt.gz,hba1c_wheeler_tophits.tsv,HBa1c (Wheeler),tsv,NA,hba1c_wheeler,glycemic_traits
+NA,NA,NA,breast_size_ooi_tophits.tsv,Breast size (Ooi 2019),tsv,NA,breast_size_ooi,physical_traits
+NA,NA,NA,breast_size_pickrell_tophits.tsv,Breast size (Pickrell 2016),tsv,NA,breast_size_pickrell,physical_traits
+NA,NA,NA,breast_size_eriksson_tophits.tsv,Breast size (Eriksson2012),tsv,NA,breast_size_eriksson,physical_traits
+NA,NA,NA,mammographic_density_lindstorm_tophits.tsv,Mammographic density (Lindstorm 2014),tsv,NA,mammographic_density_lindstorm,physical_traits
+NA,NA,NA,mammographic_density_brand_tophits.tsv,Mammographic density (Brand 2018),tsv,NA,mammographic_density_brand,physical_traits
+ieu_gwas_pipeline,height_10.txt.gz,early_height_GWAS_tidy_outcome.txt.gz,early_height_tophits.tsv,Childhood height,tsv,NA,early_height,physical_traits

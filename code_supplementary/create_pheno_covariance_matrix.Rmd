@@ -1,0 +1,203 @@
+---
+title: "phenotypic correlation matrix"
+author: "Marina Vabistsevits"
+date: "01/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(vroom)
+library(tidyr)
+library(tibble)
+library(dplyr)
+
+#install.packages("BiocManager")
+#BiocManager::install("metaCCA")
+library(metaCCA)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("../set_paths.R")
+set_paths(currently_working_env)
+
+# metadata file that is itiratelely read in and updated
+data_lookup<-paste0("../metadata/data_lookup.csv")
+
+```
+
+
+
+```{r}
+
+read_for_metaCCA <- function(file_gwas, data_name) {
+  # for reading in data from raw GWAS files
+  
+  #create custom beat and se colnames for traits
+  beta = paste0(gsub("_", "-", data_name), "_b")
+  se = paste0(gsub("_", "-", data_name), "_se")
+
+  tmp <- vroom(file_gwas, col_select = c("SNP","ALLELE0", "ALLELE1", "BETA","SE")) %>% 
+            rename(!!beta := "BETA",
+                   !!se := "SE") %>% 
+             # create `SNP` variable in all dfs
+            unite(SNP, c("SNP","ALLELE0", "ALLELE1"), sep="_" ,remove=T) 
+  return(tmp)
+}
+
+read_for_metaCCA_vcf <- function(file_gwas, data_name, mrbase.id) {
+  # for reading in data from text friles converted from GWAS VCF files
+  
+  tmp <- vroom(file_gwas) %>% 
+            select(-c(contains("pval")))  %>% 
+            # in positions with no rsid, in this data  chr_pos -> chr:pos to match GWAS format
+            mutate(rsid = sub("_", ":", rsid)) %>% 
+            # create `SNP` variable in all dfs  
+            # NB seems that in VCF data SNPs are wrong way around: effect allele is ALT allele
+            unite(SNP, c("rsid", "allele_1", "allele_0"), sep="_" ,remove=T) %>% 
+            # switch sign at beta, because we are swapping the alleles
+            mutate_at(vars(contains('_b')), list(~ .*-1)  )
+
+  
+    #create custom beta and se colnames for traits
+  old_colnames<-colnames(tmp)
+  colnames(tmp) <- paste0(gsub(mrbase.id, gsub("_", "-", data_name), old_colnames))
+  
+  return(tmp)
+}
+
+```
+
+```{r, cache=TRUE, message=F}
+# Load BMI GWAS
+
+bmi_list <- list()
+
+early_bmi_gwas_file <- read_csv(data_lookup)  %>% filter(trait == "Childhood BMI") %>% pull(original_file)
+early_bmi_file_gwas <- paste0(data_path_gwas_raw, early_bmi_gwas_file)
+early_bmi_data_name <- paste0(read_csv(data_lookup) %>% filter(trait == "Childhood BMI") %>% pull(trait_file_name)) 
+bmi_list[[1]] <- read_for_metaCCA(early_bmi_file_gwas, early_bmi_data_name)
+
+adult_bmi_gwas_file <- read_csv(data_lookup)  %>% filter(trait == "Adult BMI") %>% pull(original_file)
+adult_bmi_file_gwas <- paste0(data_path_gwas_raw, adult_bmi_gwas_file)
+adult_bmi_data_name <- paste0(read_csv(data_lookup) %>% filter(trait == "Adult BMI") %>% pull(trait_file_name)) 
+bmi_list[[2]] <- read_for_metaCCA(adult_bmi_file_gwas, adult_bmi_data_name)
+```
+
+```{r message=F}
+# specify the source of full summary stats GWAS file
+data_source <- "ieu_gwas_pipeline" # ieu_gwas_pipeline : subsets to UKB data processed manually
+traits <- read_csv(data_lookup) %>% filter(source == data_source) %>% pull(trait)
+
+data_source  <-"ieu_ukb_vcf_convert" # this is just a variable for next steps
+traits <- read_csv(data_lookup) %>% filter(grepl("UKB", trait)) %>% pull(mrbase.id)
+
+```
+
+
+```{r message=F}
+
+results <- data.frame(matrix(ncol=3, dimnames=list(NULL, c("mediator", "early_bmi", "adult_bmi"))))
+
+
+# copy  of BMI list
+l <- bmi_list
+
+traits<-traits[c(1,2)] # bmis only
+traits<-traits[c(2,3)] # specify traits
+
+for (i in 1:length(traits)) {
+
+  if (data_source == "ieu_gwas_pipeline"){
+    current_trait<-traits[i]
+    gwas_filename<- read_csv(data_lookup) %>% filter(trait == current_trait) %>% pull(original_file)
+    file_gwas <- paste0(data_path_gwas_raw, gwas_filename)
+    data_name <- paste0(read_csv(data_lookup) %>% filter(trait == current_trait) %>% pull(trait_file_name)) 
+  
+    print(paste0("Processing: ", current_trait, ", ", gwas_filename, " as ", data_name))
+    
+    l[[3]] <- read_for_metaCCA(file_gwas, data_name)
+  
+  } else if (data_source == "ieu_ukb_vcf_convert"){
+    
+    file_gwas <- paste0(data_path_gwas_raw, "from_vcf/", traits[i], ".tsv")
+    data_name <- read_csv(data_lookup) %>% filter(mrbase.id == traits[i]) %>% pull(trait_file_name)
+    current_trait <- read_csv(data_lookup) %>% filter(mrbase.id == traits[i]) %>% pull(trait)
+    
+    print(paste0("Processing: ", current_trait, ", ", file_gwas, " as ", data_name))
+
+    l[[3]] <- read_for_metaCCA_vcf(file_gwas, data_name, traits[i])
+  }
+     
+
+  dat <- l %>% 
+    # join into a table by SNP column
+    purrr::reduce(inner_join, by = "SNP") %>%  # inner join is used because raw GWAS and vcf GWAS are differenct
+    # split into 3 cols
+    separate(SNP, into=c('rsid', 'allele_0', 'allele_1'), sep="_") %>% 
+    # drop indels
+    filter_at(vars(starts_with("allele")), all_vars(. %in% c("A","T","G","C")) )  
+  
+  dim(dat)
+
+
+  if (sum(is.na(dat)) !=0 ){
+      print("      ~ WARNING: filtered df contains NAs ~      ")
+  }
+  
+  print("Merging and filtering datasets ...")
+  s_xy<- dat %>%  
+      # join rsid+alleles to create unique rsid
+      unite("rsid_w_alleles", rsid:allele_1, sep="_", remove=FALSE) %>% 
+      # covert to factors (required for later)
+      mutate_at(vars(starts_with("allele")), factor) %>% 
+      # set rsid column as rownames
+      select(-rsid) %>% column_to_rownames('rsid_w_alleles')   
+  
+  dim(s_xy)
+    
+  print("~~ Estimating phenotypic correlation matrix ~~")
+  s_yy = estimateSyy( S_XY = s_xy )
+  dim(s_yy)    
+
+  colnames(s_yy) = rownames(s_yy) = c("Childhood BMI", "Adult BMI", current_trait)
+  
+  print("Merging new rows")
+  results <- rbind(results, 
+                   c(current_trait, 
+                     s_yy["Childhood BMI", current_trait], 
+                     s_yy["Adult BMI", current_trait])) %>% drop_na()
+  print(results)
+  print("Done")
+  
+   # restart
+  rm(l)
+  l <- bmi_list
+  #print(length(l))
+  
+}
+
+write_tsv(results, paste0(results_path, "pheno_correlations_tmp.tsv"))
+# then same this filein metadata/
+
+
+#                    mediator            early_bmi            adult_bmi
+#1                         IGF  -0.0361859370411845   -0.120314689681651
+#2 Testosterone (bioavailable) -0.00383400797496225    0.258677907382292
+#3         Testosterone (free)   0.0011877206298818    0.274948956843423
+#4                        SHBG -0.00618570596079564   -0.391566530757684
+#5        Testosterone (total) -0.00308270021523709   0.0843377825757734
+#6            Childhood height   0.0478503376118171 0.000311649197591022
+#8               Childhood BMI                    1    0.197457970757342
+#9                   Adult BMI    0.197457970757342                    1
+#        Age at menarche (UKB)    -0.18038630381757  -0.150829774036217
+#Age at first live birth (UKB) -0.00187112630367445  -0.160617665382926
+#       Number of births (UKB)  -0.0293005563881025  0.0471011521303226
+#       Age at menopause (UKB)   0.0146786574820213 -0.0209636169549356
+
+```
+

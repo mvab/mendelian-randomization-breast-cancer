@@ -1,0 +1,537 @@
+---
+title: "generate forest plots"
+author: "Marina Vabistsevits"
+date: "10/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(tibble)
+library(dplyr)
+library(data.table)
+library(vroom)
+library(TwoSampleMR)
+library(ggplot2)
+library(cowplot)
+library(wesanderson)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("set_paths.R")
+set_paths(currently_working_env)
+
+# metafile
+data_lookup<-read_csv(paste0("metadata/data_lookup.csv")) 
+```
+
+## MVMR 2 BMI - mediator
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_BMIs-*", full.names = T)
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind) 
+
+write_tsv(df, paste0(results_path, "mvmr_BMIs-mediators_using_2SMR.tsv"))
+df<-read_tsv(paste0(results_path, "mvmr_BMIs-mediators_using_2SMR.tsv"))
+
+
+pal <- wes_palette("Darjeeling1")[c(2,3,4,5)]
+p<-ggplot(df, aes(y=exposure, x=b, label=outcome.full, shape=exposure, colour=outcome)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome.full, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+
+```
+
+
+## MVMR early BMI + mediator -> BC
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_earlyBMI-*", full.names = T)
+l <- lapply(all.files_mr[c(11,12,13,20,21)], fread)
+
+df <- l %>% reduce(rbind)
+
+
+df$exposure.pair<-c("IGF"         ,"IGF" ,
+                    "Oestradiol"  ,"Oestradiol",
+                    "SHBG"        ,"SHBG"  ,
+                    "SHBG"        ,"SHBG"  ,
+                    "Testosterone","Testosterone",
+                    "Testosterone","Testosterone",
+                    "Testosterone","Testosterone",
+                    "Testosterone","Testosterone",
+                    "Testosterone","Testosterone")
+
+write_tsv(df, paste0(results_path, "mvmr_earlyBMI_mediators_BC_using_2SMR.tsv"))
+
+df<-read_tsv(paste0(results_path, "mvmr_earlyBMI_mediators_BC_using_2SMR.tsv"))
+
+
+
+
+pal <- wes_palette("Darjeeling1")[c(2,3,4,5)]
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=exposure.pair)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+
+```
+
+## MVMR early BMI + testosterones -> BC
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_earlyBMI-*", full.names = T)
+l <- lapply(all.files_mr[grepl("Testosterone", all.files_mr)], fread)
+
+df <- l %>% reduce(rbind)
+# adhoc add full names
+write_tsv(df, paste0(results_path, "mvmr_earlyBMI_testosterones_BC_using_2SMR.tsv"))
+
+df<-df %>% 
+  mutate(measure = ifelse(grepl("free", exposure), "Free", 
+                   ifelse(grepl("bioavailable", exposure), "Bioavailable",
+                   ifelse(grepl("total", exposure), "Total", "Total (old)")))) %>% 
+  mutate(menopause = ifelse(grepl("pre", exposure), "pre-menopause", 
+                   ifelse(grepl("post", exposure), "post-menopause", "all"))) %>% 
+  mutate(menopause = factor(menopause, levels=c( "pre-menopause", "post-menopause", "all"))) %>% 
+  arrange(menopause)
+
+pal<-unname(yarrr::piratepal("google"))
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=measure)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+
+```
+
+## MVMR BMIs + mediator -> BC
+
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_adultBMI-*", full.names = T)
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind)
+# adhoc add full names
+write_tsv(df, paste0(results_path, "mvmr_adultBMI-earlyBMI_mediators_BC_using_2SMR.tsv"))
+
+
+df$exposure.pair<-c("IGF"         ,"IGF"         ,"IGF" ,
+                    "Oestradiol"  ,"Oestradiol"  ,"Oestradiol",
+                    "SHBG"        ,"SHBG"        ,"SHBG"  ,
+                    "SHBG"        ,"SHBG"        ,"SHBG"  ,
+                    "Testosterone","Testosterone","Testosterone",
+                    "Testosterone","Testosterone","Testosterone",
+                    "Testosterone","Testosterone","Testosterone",
+                    "Testosterone","Testosterone","Testosterone",
+                    "Testosterone","Testosterone","Testosterone")
+
+pal <- wes_palette("Darjeeling1")[c(2,3,4,5)]
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=exposure.pair)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+
+```
+
+
+
+### MVMR reproductive traits
+
+## MVMR 2 BMI - reptrair
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_BMIs-*", full.names = T)
+l <- lapply(all.files_mr[c(1:5,8)], fread)
+
+df <- l %>% reduce(rbind) 
+
+write_tsv(df, paste0(results_path, "mvmr_BMIs-ReproductiveTraits_using_2SMR.tsv"))
+
+dat<-df %>% 
+  mutate(trait_type = ifelse(grepl("menarche", outcome.full), "menarche",
+                             ifelse(grepl("menopause", outcome.full), "menopause",
+                             ifelse(grepl("live birth", outcome.full), "live birth",
+                             ifelse(grepl("births", outcome.full), "births", "BMI"
+                             ))))) 
+
+
+pal<-rev(unname(yarrr::piratepal("info2")))
+p<-ggplot(dat, aes(y=exposure, x=b, label=outcome.full, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome.full, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+
+```
+
+## MVMR early BMI + reptraits -> BC
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_earlyBMI-*", full.names = T)
+l <- lapply(all.files_mr[c(4:8,11)], fread)
+
+df <- l %>% reduce(rbind)
+# adhoc add full names
+write_tsv(df, paste0(results_path, "mvmr_earlyBMI_ReproductiveTraits_BC_using_2SMR.tsv"))
+
+df$trait_type<-c(rep("live birth", 2),
+                    rep("menarche", 4),
+                    rep("menopause", 4),
+                    rep("births", 2))
+
+pal<-rev(unname(yarrr::piratepal("info2")))[c(1:4,6)]
+df$exposure <- forcats::fct_inorder(df$exposure) %>% forcats::fct_rev() 
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+scales::show_col(pal)
+```
+
+
+## MVMR BMIs + mediator -> BC
+
+```{r}
+all.files_mr <- list.files(path = results_path, pattern = "mvmr_adultBMI-*", full.names = T)
+l <- lapply(all.files_mr[c(2:6,8)], fread)
+
+df <- l %>% reduce(rbind)
+# adhoc add full names
+write_tsv(df, paste0(results_path, "mvmr_adultBMI-earlyBMI_ReproductiveTraits_BC_using_2SMR.tsv"))
+df<-read_tsv(paste0(results_path, "mvmr_adultBMI-earlyBMI_ReproductiveTraits_BC_using_2SMR.tsv"))
+
+df$exposure.pair<-c(rep("live birth", 3),
+                    rep("menarche", 6),
+                    rep("menopause", 6),
+                    rep("births", 3))
+df$exposure.pair2<-c(rep("live birth", 3),
+                    rep("menarche Perry", 3),
+                    rep("menarche UKB", 3),
+                    rep("menopause Day", 3),
+                    rep("menopause UKB", 3),
+                    rep("births", 3))
+
+pal<-rev(unname(yarrr::piratepal("info2")))[c(1:4,6,7)]
+df$exposure <- forcats::fct_inorder(df$exposure) %>% forcats::fct_rev() 
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=exposure.pair)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=exposure.pair)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(exposure.pair2~outcome, ncol =2)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+```
+
+
+
+
+### MVMR glycemic traits
+
+## MVMR 2 BMI - glytrait
+```{r}
+all.files_mr <- list.files(path = paste0(results_path, "glycemic_traits/"), pattern = "mvmr_BMIs-*", full.names = T)
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(bind_rows) 
+
+dat<-df %>% 
+          mutate(trait_type = ifelse(grepl("insulin", outcome.full), "insulin",
+                             ifelse(grepl("glucose", outcome.full), "glucose",
+                             ifelse(grepl("HOMA-B", outcome.full), "HOMA-B",
+                             ifelse(grepl("HOMA-IR", outcome.full), "HOMA-IR",
+                             ifelse(grepl("HBa1c", outcome.full), "HBa1c", NA
+                              ))))))
+
+write_tsv(dat, paste0(results_path, "glycemic_traits/", "mvmr_BMIs-glycemic_traits_using_2SMR_", Sys.Date(),".tsv"))
+
+pal<-c(unname(yarrr::piratepal("pony")))
+p<-ggplot(dat, aes(y=exposure, x=b, label=outcome.full, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome.full, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+kable_it(dat)
+```
+
+## MVMR early BMI + glytraits -> BC
+```{r}
+all.files_mr <- list.files(path = paste0(results_path, "glycemic_traits/"), pattern = "mvmr_earlyBMI-*", full.names = T)
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind)
+
+df$trait_type<-c(rep("glucose", 4),
+                    rep("insulin", 4),
+                    rep("HBa1c", 2),
+                    rep("HOMA-B", 2),
+                    rep("HOMA-IR", 2))
+
+write_tsv(df, paste0(results_path, "glycemic_traits/" ,"mvmr_earlyBMI_glycemic_traits_BC_using_2SMR_", Sys.Date(),".tsv"))
+
+pal<-c(unname(yarrr::piratepal("pony")))
+df$exposure <- forcats::fct_inorder(df$exposure) %>% forcats::fct_rev() 
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+kable_it(df)
+```
+
+
+## MVMR BMIs + mediator -> BC
+
+```{r}
+all.files_mr <- list.files(path = paste0(results_path, "glycemic_traits/"), pattern = "mvmr_adultBMI-*", full.names = T)
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind)
+
+df$trait_type<-c(rep("glucose", 6),
+                    rep("insulin", 6),
+                    rep("HBa1c", 3),
+                    rep("HOMA-B", 3),
+                    rep("HOMA-IR", 3))
+
+write_tsv(df, paste0(results_path, "glycemic_traits/" , "mvmr_adultBMI-earlyBMI_glycemic_traits_BC_using_2SMR_", Sys.Date(),".tsv"))
+
+
+
+pal<-c(unname(yarrr::piratepal("pony")))
+df$exposure <- forcats::fct_inorder(df$exposure) %>% forcats::fct_rev() 
+p<-ggplot(df, aes(y=exposure, x=or, label=outcome, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+##, shape=c(20,16))+#, color = "orange") +
+  scale_color_manual(values=pal)+
+  #scale_shape_manual(values = c(19,20)) +
+  #coord_fixed(ratio=.3) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="MVMR results, 95% CI")+
+  theme(legend.position = "none")
+
+kable_it(df)
+
+```
+
+
+
+
+
+```{r}
+kable_it<-function(df){
+  library(kableExtra)
+  df %>% 
+    mutate(pval= as.character(pval)) %>% 
+  mutate_if(is.numeric, round, digits=2) %>% 
+  mutate(pval=as.numeric(pval),
+         pval=scales::scientific(pval, digits = 2)) %>% 
+  kable(.) %>%
+  kable_styling()
+}
+```
+
+
+
+
+# Compare the effects on childhood BMI in all mvmr models
+
+```{r}
+
+mvmr_summary_files<-c("mvmr_BMI-to-BC_using_2SMR.tsv",
+                      "mvmr_earlyBMI_mediators_BC_using_2SMR.tsv",
+                      "reproductive_traits/mvmr_earlyBMI_ReproductiveTraits_BC_using_2SMR.tsv",
+                      "mvmr_earlyBMI_testosterones_BC_using_2SMR.tsv",
+                      "glycemic_traits/mvmr_earlyBMI_glycemic_traits_BC_using_2SMR_2020-05-18.tsv")
+
+l <- lapply(paste0(results_path, mvmr_summary_files), fread)
+
+df <- l %>% reduce(bind_rows) %>% distinct()
+
+# add pair labels
+df$pair <- rep(df$exposure[c(FALSE, TRUE)], each=2)
+# create a new label
+df$direct <- paste0("Childhood BMI acc. for " , df$pair)
+
+# drop mediator measures
+df_BMI<- df %>% filter(exposure == "Childhood BMI") %>%  arrange(or)
+df_BMI %>% kable_it()
+
+# BMI
+p<-ggplot(df_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=exposure)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+
+  geom_vline(xintercept=0.5855992, linetype=2, colour = "blue") +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="            MVMR results: Childhood BMI with mediators, 95% CI")+
+  theme(legend.position = "none", plot.title.position = "plot")
+
+# drop mediator measures
+df_med<- df %>% filter(exposure != "Childhood BMI") %>%  arrange(or)
+df_med %>% kable_it()
+# mediators
+p2<-ggplot(df_med, aes(y=reorder(exposure, -or), x=or, label=outcome, colour=exposure)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+
+  #geom_vline(xintercept=0.5855992, linetype=2, colour = "blue") +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="               MVMR results: mediator with childhood BMI, 95% CI")+
+  theme(legend.position = "none", plot.title.position = "plot")
+```
+
+## + adult BMI in the model 
+```{r}
+
+mvmr_summary_files<-c("mvmr_adultBMI-earlyBMI_mediators_BC_using_2SMR.tsv",
+                       "reproductive_traits/mvmr_adultBMI-earlyBMI_ReproductiveTraits_BC_using_2SMR.tsv",
+                       "glycemic_traits/mvmr_adultBMI-earlyBMI_glycemic_traits_BC_using_2SMR_2020-05-18.tsv")
+
+l <- lapply(paste0(results_path, mvmr_summary_files), fread)
+
+df <- l %>% reduce(bind_rows) %>% distinct()
+
+# add pair labels
+df$pair <- df %>% filter(!exposure %in% c("Adult BMI", "Childhood BMI")) %>% pull(exposure) %>%  rep(., each=3)
+
+basic_model<-fread(paste0(results_path,"mvmr_BMI-to-BC_using_2SMR.tsv"))
+basic_model$pair <- "only Adult BMI"
+
+df<-bind_rows(basic_model, df)
+
+# create a new label
+df$direct <- paste0("Childhood BMI acc. for Adult BMI and " , df$pair )
+
+# drop mediator measures
+df_BMI<- df %>% filter(exposure == "Childhood BMI") %>%  arrange(or)
+
+
+df_BMI %>% kable_it()
+
+# BMI
+p3<-ggplot(df_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=exposure)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+
+  geom_vline(xintercept=0.5855992, linetype=2, colour = "blue") +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="            MVMR results: Childhood BMI with Adult BMI mediators, 95% CI")+
+  theme(legend.position = "none", plot.title.position = "plot")
+
+
+# drop mediator measures
+df_med<- df %>% filter(!exposure %in% c("Childhood BMI", "Adult BMI")) %>%  arrange(or)
+
+# mediators
+p4<-ggplot(df_med, aes(y=reorder(exposure, -or), x=or, label=outcome, colour=exposure)) +
+  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
+  geom_point(size=2)+
+  #geom_vline(xintercept=0.5855992, linetype=2, colour = "blue") +
+  geom_vline(xintercept=1, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "OR",
+       title="       MVMR results: mediator with childhood BMI and adult BMI, 95% CI")+
+  theme(legend.position = "none", plot.title.position = "plot")

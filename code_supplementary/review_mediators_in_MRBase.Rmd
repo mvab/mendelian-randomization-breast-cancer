@@ -1,0 +1,71 @@
+---
+title: "reviwing data in MRbase"
+author: "Marina Vabistsevits"
+date: "19/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TwoSampleMR)
+library(dplyr)
+```
+
+```{r}
+# checking for new mediators in MRbase
+ao<-available_outcomes()
+```
+
+## Various molecules
+```{r}
+term <- "Leptin"
+term <- "Corticotropin"
+term <- "Melanocortin"
+term <- "Somatotropin"
+```
+
+```{r}
+
+ao %>% filter(grepl(term, trait, ignore.case = T)) %>% View()
+
+data <- ao %>% filter(grepl(term, trait, ignore.case = T)) 
+
+inst<-extract_instruments(data$id, clump = F, p1=10e-8)
+
+ids<-inst %>% count(id.exposure)
+ids
+
+ao %>% filter(id %in% ids$id.exposure) %>% select(c(1:5,7,8,11)) %>% left_join(., ids, by=c("id"="id.exposure") )%>% View()
+
+inst_sign<- extract_instruments(ids$id.exposure)
+
+# do by one
+inst_test<- extract_instruments("prot-a-1936",clump = F, p1=10e-8) %>% clump_data()
+
+
+```
+
+```{r}
+gwas_catalog %>% 
+  filter(grepl( "leptin", Phenotype_simple, ignore.case = T)) %>% 
+  filter(grepl("European", Initial_sample_description)) %>% 
+  filter(!is.na(beta)) %>% 
+  select(-c("MAPPED_TRAIT_EFO", "MAPPED_TRAIT_EFO_URI", "Replication_sample_description",  "chr" , 
+            "bp_ens_GRCh38" , "Region", "Gene_ens" , "date_added_to_MRBASE"  )) %>% View()
+```
+
+
+## Reproductive traits
+ukb-b-3768
+ieu-a-1095
+ukb-b-12405
+ukb-b-1209
+ukb-b-17422
+ieu-a-1004
+
+```{r}
+test<-extract_instruments(outcomes='ukb-b-3768') %>% 
+      clump_data()
+dim(test)
+```
+

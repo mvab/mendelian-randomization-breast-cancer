@@ -1,0 +1,375 @@
+---
+title: "2SMR_toyexample"
+author: "Marina Vabistsevits"
+date: "03/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(plyr)
+library(TwoSampleMR)
+library(ieugwasr)
+```
+
+## Basic workflow
+
+## Data available in MR-Base
+
+We want to find the effect of an exposure on an outcome. An exposure can be analysed if instruments (i.e. GWAS hits) have been identified for it. Hence the only data required are the following for the top hits: rsid, effect size, standard error, effect allele. These are often recorded in various databases such as GWAS catalog etc. To test the effect of that exposure on the outcome, we need those same SNPs' effects on the outcome. There is no guarantee that they will have previously been GWAS hits, so a trait can only generally be analysed as an outcome if it has complete GWAS summary data available.
+
+
+### 1. The influence of BMI on Breast cancer
+
+A quick way to do this is to see if a suitably powered urate GWAS is available in MR-Base, and extract the LD-clumped top hits
+The available_outcomes function returns a table of all the available studies in the database. Each study has a unique ID
+```{r}
+ao <- available_outcomes()
+```
+
+
+### **Exposures**
+
+To extract instruments for a particular trait using a particular study:
+Going to take female-only in GIANT (measured). We can extract the top hits from this study
+```{r}
+View(subset(ao, grepl("Body mass", trait)))
+```
+
+
+```{r}
+ #### NB the extract instruments does not work - see next chunk for exreaction using ieugwasr package
+exposure_1 <- extract_instruments(outcomes = "ukb-b-19953", 
+                                  p1 = 5e-08, 
+                                  clump = TRUE, 
+                                  r2 = 0.001, force_server = TRUE) 
+exposure_1 <- extract_instruments(outcomes = "ieu-a-974", # GIANT, females
+                                  p1 = 5e-08, 
+                                  clump = TRUE, 
+                                  r2 = 0.001, force_server = TRUE) 
+dim(exposure_1) # 37
+View(exposure_1)
+```
+This returns a set of LD clumped SNPs that are GWAS significant for BMI. You can specify various parameters for this function:
+  p1 = P-value threshold for keeping a SNP
+  clump = Whether or not to return independent SNPs only (default=TRUE)
+  r2 = The maximum LD R-square allowed between returned SNPs
+  kb = The distance in which to search for LD R-square values
+
+We have extracted X instruments for urate levels from this study.
+
+```{r}
+outcomes <- ieugwasr::legacy_ids(unique("UKB-b:19953"))
+
+d <- ieugwasr::tophits(outcomes, pval=5e-08, clump=TRUE, r2=0.001)
+d$phenotype <- paste0(d$trait, " || id:", d$id)
+
+d <- format_data(
+	d,
+	type="exposure",
+	snps=NULL,
+	phenotype_col="phenotype",
+	snp_col="rsid",
+	chr_col="chr",
+	pos_col="position",
+	beta_col="beta",
+	se_col="se",
+	eaf_col="eaf",
+	effect_allele_col="ea",
+	other_allele_col="nea",
+	pval_col="p",
+	samplesize_col="n",
+	min_pval=1e-200,
+	id_col="id"
+)
+d$data_source.exposure <- "igd"
+
+exposure_1 <- d
+dim(exposure_1) 
+```
+
+
+
+Next we need to get the corresponding effects from a suitably powered coronary heart disease study
+
+
+### **Outcomes**
+
+```{r}
+View(subset(ao, grepl("Breast", trait)))
+ao %>% filter(grepl("Breast", trait)) %>% filter(consortium == "BCAC") %>% View()
+# use largest: N=228951, cases:122977; ID: 1126
+```
+
+BCAC, N= 228951, females only , Breast cancer (Combined Oncoarray; iCOGS; GWAS meta analysis)
+
+```{r}
+outcome_1 <- extract_outcome_data(
+                snps = exposure_1$SNP,
+                outcome = 1126,
+                proxies = TRUE,
+                rsq = 0.8, maf_threshold = 0.3) 
+dim(outcome_1) # 36
+```
+By default if a particular requested SNP is not present in the outcome GWAS then a SNP (proxy) that is in LD with the requested SNP (target) will be searched for instead. LD proxies are defined using 1000 genomes European sample data. The effect of the proxy SNP on the outcome is returned, along with the proxy SNP, the effect allele of the proxy SNP, and the corresponding allele (in phase) for the target SNP.
+
+The parameters for handling LD proxies are as follows:
+  proxies = TRUE or FALSE (TRUE by default)
+  rsq = numeric value of minimum rsq to find a proxy. Default is 0.8, minimum is 0.6
+  palindromes = Allow palindromic SNPs? Default is 1 (yes)
+  maf_threshold = If palindromes allowed then what is the maximum minor allele frequency of palindromes allowed? Default is 0.3.
+
+
+### **Harmonise**
+
+It is important to harmonise the effects. This means that the effect of a SNP on the exposure and the effect of that SNP on the outcome must each correspond to the same allele.
+
+Note: The IEU GWAS database contains data that is already harmonised, meaning that the non-effect allele is aligned to the human genome reference sequence (build 37). It’s still recommended to harmonise, but in principle everything should be on the forward strand and effect alleles always relating to the same allele. Some discrepancies could arise if there are multi-allelic variants that are represented as different bi-allelic variants in different studies.
+
+Next we have to harmonise the exposure and outcome data - meaning that the effect estimates are always on the same allele. e.g. we can see that the effect alleles are not always the same in the two studies:
+
+To harmonise the exposure and outcome data, do the following:
+
+```{r}
+dat_1 <- harmonise_data(exposure_dat = exposure_1, 
+                        outcome_dat = outcome_1)
+dim(dat_1)
+table(dat_1$mr_keep)
+```
+This creates a new data frame that has the exposure data and outcome data combined.
+
+
+### **Perform MR**
+Once the exposure and outcome data are harmonised, we have effects and standard errors for each instrument SNP available for the exposure and outcome traits. We can use this information to perform Mendelian randomisation. To do this, simply run:
+
+
+```{r}
+res_1 <- mr(dat_1)  # method_list=c("mr_egger_regression", "mr_ivw"))
+res_1
+View((res_1))
+```
+This returns a data frame of estimates of the causal effect of the exposure on the outcome for a range of different MR methods.
+
+
+### **Tidy up**
+
+```{r}
+res_tidy<- res_1 %>%
+              split_outcome() %>% 
+              split_exposure() %>% 
+              separate(outcome, "outcome", sep="[(]") %>% 
+              generate_odds_ratios()
+View(res_tidy)
+
+```
+
+
+
+
+## _Sensitivity analyses_
+
+### **Heterogeneity statistics**
+
+Some of the MR methods can also perform tests for heterogeneity. To obtain those statistics:
+
+```{r}
+mr_heterogeneity(dat_1)
+```
+
+
+
+### **Horizontal pleiotropy**
+The intercept term in MR Egger regression can be a useful indication of whether directional horizontal pleiotropy is driving the results of an MR analysis. This can be obtained as follows:
+
+```{r}
+mr_pleiotropy_test(dat_1)
+```
+
+
+## _Plots_
+
+### **Scatter plot**
+
+We can depict the relationship of the SNP effects on the exposure against the SNP effects on the outcome using a scatter plot.
+
+It looks like there is substantial heterogeneity. Let's plot the results
+
+```{r}
+mr_scatter_plot(res_1, dat_1)
+```
+
+
+Lines are drawn for each method used in mr(dat), the slope of the line corresponding to the estimated causal effect. To limit which lines are drawn, simply specify the desired methods, e.g. to only draw MR Egger and IVW:
+
+```{r}
+res_1 <- mr(dat_1, method_list=c("mr_egger_regression", "mr_ivw"))
+mr_scatter_plot(res_1, dat_1)
+```
+
+
+## _Forest plot_
+
+Use the mr_forest_plot() function to compare the MR estimates using the different MR methods against the single SNP tests.
+```{r}
+res_single <- mr_singlesnp(dat_1)
+mr_forest_plot(res_single)
+```
+
+Here, the plot shows the causal effect as estimated using each of the SNPs on their own, and comparing against the causal effect as estimated using the methods that use all the SNPs.
+
+To get plots that use different methods, specify them in the mr_singlesnp() function:
+
+```{r}
+res_single <- mr_singlesnp(dat_1, all_method=c("mr_ivw", "mr_two_sample_ml"))
+mr_forest_plot(res_single)
+```
+
+**NB** There are many other plots that could be created and used
+
+
+## _Multivariable MR_
+
+See _https://mrcieu.github.io/TwoSampleMR/articles/perform_mr.html_
+
+
+
+
+
+
+
+
+## _Post MR results management_
+
+The TwoSampleMR package also provides the following functions for managing or editing MR results.
+
+**Split outcome names**
+The outcome column in the output of mr() combines the original outcome name with the outcome trait ID.
+
+```{r}
+head(res_1)
+head(split_exposure(split_outcome(res_1)))
+```
+
+**Generate odds ratios with 95% confidence intervals**
+
+Users can convert log odds ratios into odds ratios with 95% confidence intervals using:
+
+```{r}
+generate_odds_ratios(res_1)
+```
+
+**Combine all results**
+
+It is often useful to combine all results and study level characterists into a single dataframe or table, e.g. for sharing results with collaborators or when the user wishes to present all results in a single table or figure. This can be done using the combine_all_mrresults() function:
+
+```{r}
+res<-mr(dat_1)
+
+het<-mr_heterogeneity(dat_1)
+plt<-mr_pleiotropy_test(dat_1)
+sin<-mr_singlesnp(dat_1)
+
+all_res <- combine_all_mrresults(res, het, plt, sin, ao_slc=T, Exp=T, split.exposure=F, split.outcome=T)
+head(all_res[,c("Method","outcome","exposure","nsnp","b","se","pval","intercept","intercept_se","intercept_pval","Q","Q_df","Q_pval","consortium","ncase","ncontrol","pmid","population")])
+```
+This combines all results from mr(), mr_heterogeneity(), mr_pleiotropy_test() and mr_singlesnp() into a single dataframe. It also merges the results with outcome study level characteristics from the available_outcomes() function, including sample size characteristics. If requested, it also exponentiates results (e.g. if the user wants log odds ratio converted into odds ratios with 95 percent confidence intervals).
+
+
+
+
+
+## _Multivariable MR test_
+
+
+When SNPs instrument multiple potential exposures, for example in the case of different lipid fractions, one method for overcoming this problem is to estimate the influence of each lipid conditioning on the effects of the SNPs on the other lipids. Multivariable MR can be performed using the R package as follows.
+
+The GWAS IDs for HDL, LDL and total cholesterol are ieu-a-299, ieu-a-300 and ieu-a-302. The GWAS ID for coronary heart disease (CHD) is ieu-a-7. In this example we will estimate the multivariable effects of HDL, LDL and total cholesterol on CHD.
+
+```{r}
+id_exposure <- c("ieu-a-299", "ieu-a-300", "ieu-a-302")
+id_outcome <- "ieu-a-7"
+```
+
+First obtain the instruments for each lipid fraction. This entails obtaining a combined set of SNPs including all instruments, and getting those SNPs for each lipid fraction. Therefore, if there are e.g. 20 instruments for each of 3 lipid fractions, but combined there are 30 unique SNPs, then we need to extract each of the 30 SNPs from each lipid fraction (exposure).
+
+```{r}
+exposure_dat <- mv_extract_exposures(id_exposure)
+```
+
+```{r}
+
+# mv_extract_exposures source code
+
+  require(reshape2)
+	stopifnot(length(id_exposure) > 1)
+
+	# Get best instruments for each exposure
+	exposure_dat <- extract_instruments(id_exposure)
+  dim(exposure_dat) # 225
+	exposure_dat %>% dplyr::count(exposure)
+  # # A tibble: 3 x 2
+  #   exposure                            n
+  #   <chr>                           <int>
+  # 1 HDL cholesterol || id:ieu-a-299    89
+  # 2 LDL cholesterol || id:ieu-a-300    81
+  # 3 Triglycerides || id:ieu-a-302      55
+	
+	temp <- exposure_dat
+	temp$id.exposure <- 1
+	temp <- clump_data(temp)
+	dim(temp) # 153
+	exposure_dat <- subset(exposure_dat, SNP %in% temp$SNP)
+
+
+	# Get effects of each instrument from each exposure
+	d1 <- extract_outcome_data(exposure_dat$SNP, id_exposure,  proxies=TRUE)
+	dim(d1) # 435
+	stopifnot(length(unique(d1$id)) == length(unique(id_exposure)))
+	d1 <- subset(d1, mr_keep.outcome)
+	d2 <- subset(d1, id.outcome != id_exposure[1]) # dropped data for one of the traits
+	d1 <- convert_outcome_to_exposure(subset(d1, id.outcome == id_exposure[1])) # this other trait here as exposure
+
+	# Harmonise against the first id
+	d <- harmonise_data(d1, d2, action=2)
+
+	# Only keep SNPs that are present in all
+	tab <- table(d$SNP)
+	keepsnps <- names(tab)[tab == length(id_exposure)-1]
+	d <- subset(d, SNP %in% keepsnps)
+	
+	# Reshape exposures
+	dh1 <- subset(d, id.outcome == id.outcome[1], # for first trait get exposure cols
+	              select=c(SNP, exposure, id.exposure, effect_allele.exposure, other_allele.exposure, eaf.exposure, beta.exposure, se.exposure, pval.exposure))
+	dh2 <- subset(d, # for the others get outcome cols
+	              select=c(SNP, outcome, id.outcome, effect_allele.outcome, other_allele.outcome, eaf.outcome, beta.outcome, se.outcome, pval.outcome))
+	
+	names(dh2) <- gsub("outcome", "exposure", names(dh2)) # rename outcome to exposure in these
+	# join data
+	dh <- rbind(dh1, dh2)
+```
+
+
+
+
+
+
+Next, also extract those SNPs from the outcome.
+
+```{r}
+outcome_dat <- extract_outcome_data(exposure_dat$SNP, id_outcome)
+```
+
+Once the data has been obtained, harmonise so that all are on the same reference allele.
+```{r}
+mvdat <- mv_harmonise_data(exposure_dat, outcome_dat)
+```
+Finally, perform the multivariable MR analysis
+
+```{r}
+res <- mv_multiple(mvdat)
+```
+
+This generates a table of results.
+

@@ -1,0 +1,501 @@
+---
+title: "Univarite MR of BMI to mediators"
+author: "Marina Vabistsevits"
+date: "21/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(data.table)
+library(vroom)
+
+library(tidyr)
+library(purrr)
+library(tibble)
+library(dplyr)
+
+library(TwoSampleMR)
+library(ggplot2)
+library(cowplot)
+library(wesanderson)
+```
+
+```{r}
+# set path for pre-calculated data, outside the code repo
+# `local` / `remote` (reading data from RDSF)
+currently_working_env = "local"
+source("set_paths.R")
+set_paths(currently_working_env)
+
+# metafile
+data_lookup<-read_csv(paste0("metadata/data_lookup.csv")) 
+
+# load functions
+source("functions.R")
+```
+
+# Load BMI exposure files
+```{r message=F}
+
+early_bmi_file <- data_lookup %>% filter(trait == "Childhood BMI") %>% pull(tophits_data)
+early_bmi_exp <- read_tsv(paste0(data_path_tophits, early_bmi_file))
+dim(early_bmi_exp) # 115 in new # 42 in split sample
+
+adult_bmi_file <- data_lookup %>% filter(trait == "Adult BMI") %>% pull(tophits_data)
+adult_bmi_exp <- read_tsv(paste0(data_path_tophits, adult_bmi_file))
+dim(adult_bmi_exp) # 173 in new
+
+```
+
+
+
+# Run MR for all in a loop 
+
+```{r}
+# specify group to process if data is in textfiles
+current_trait_category <- "hormones"
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(full_data)) %>%  pull(full_data)
+mediators
+
+current_trait_category <- "hormones_splitsample" # include part 1 BMI
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(full_data)) %>%  pull(full_data)
+mediators
+
+# specify group to process  if the data is in MRBase
+current_trait_category <- "reproductive_traits"
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(mrbase.id)) %>%  pull(mrbase.id)
+
+current_trait_category <- "glycemic_traits"
+# run 2 loops: mrbase and text data
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(mrbase.id)) %>%  pull(mrbase.id)
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(full_data)) %>%  pull(full_data)
+
+# specify group to process if data is in textfiles
+current_trait_category <- "physical_traits"
+mediators <- data_lookup %>% filter(trait_category == current_trait_category) %>% filter(!is.na(full_data)) %>%  pull(full_data) # only 2 here
+```
+
+```{r message =F}
+# MR loop
+for (i in 1:length(mediators)){
+  
+  # Load data (first decide if it's in text file or in MR base)
+  
+  if( mediators[i] %in% data_lookup$full_data ){
+    # it's a text file
+    mediator_file_name <- data_lookup %>% filter(full_data == mediators[i]) %>% pull(trait_file_name)
+    
+    # load full GWAS data (outcomes) and subset to exposure SNPs
+    print(paste0("Processing ", mediators[i]))
+    outcome_mediator <- vroom(paste0(data_path_gwas, mediators[i]))
+  
+    outcome_mediator_early <- outcome_mediator %>%
+              filter(SNP %in% early_bmi_exp$SNP)
+    outcome_mediator_adult <- outcome_mediator %>%
+              filter(SNP %in% adult_bmi_exp$SNP)
+    rm(outcome_mediator)
+    
+
+  } else if ( mediators[i] %in% data_lookup$mrbase.id ){
+    # it's in mrbase
+    mediator_file_name <- data_lookup %>% filter(mrbase.id == mediators[i]) %>% pull(trait_file_name)
+
+   # extrarct exposure SNPs from outcomes in (mediators) in MRBase
+   print(paste0("Processing ", mediators[i]))
+   outcome_mediator_early <- extract_outcome_data(
+              snps = early_bmi_exp$SNP,
+              outcome = mediators[i])
+   outcome_mediator_adult <- extract_outcome_data(
+              snps = adult_bmi_exp$SNP,
+              outcome = mediators[i])
+   # add better outcome names
+   outcome_mediator_early$outcome <- data_lookup %>% filter(mrbase.id == mediators[i]) %>% pull(trait)
+   outcome_mediator_adult$outcome <- data_lookup %>% filter(mrbase.id == mediators[i]) %>% pull(trait)
+  }
+  
+    
+  # Harmonise 
+  dat_early <- harmonise_data(exposure_dat = early_bmi_exp, 
+                          outcome_dat = outcome_mediator_early)
+  dat_adult <- harmonise_data(exposure_dat = adult_bmi_exp, 
+                          outcome_dat = outcome_mediator_adult)
+
+  # Perform MR
+  res_early <- mr(dat_early, method_list=c('mr_ivw','mr_egger_regression','mr_weighted_median', 'mr_wald_ratio')) 
+  res_adult <- mr(dat_adult, method_list=c('mr_ivw','mr_egger_regression','mr_weighted_median', 'mr_wald_ratio'))   
+  
+          
+  # Tidy up results and save
+  res_early_tidy<- res_early %>%
+                split_outcome() %>% 
+                split_exposure() %>% 
+                generate_odds_ratios()
+  
+  res_adult_tidy<- res_adult %>%
+                split_outcome() %>% 
+                split_exposure() %>%
+                generate_odds_ratios()
+  
+  out <- rbind(res_early_tidy, res_adult_tidy ) %>% 
+          #filter(exposure != "Adult BMI") %>%  # adhoc added to process split sample wo AdultBMI run
+          arrange(method) %>%
+          select(-c("id.outcome", "id.exposure"))
+  
+  
+  # Pleiotropy and Heterogeneity
+  out_sensitivity<- rbind(
+    full_join(mr_pleiotropy_test(dat_early),
+              mr_heterogeneity(dat_early, method_list=c("mr_egger_regression", "mr_ivw"))),
+    full_join(mr_pleiotropy_test(dat_adult),
+              mr_heterogeneity(dat_adult, method_list=c("mr_egger_regression", "mr_ivw"))) 
+  )  %>% select(-c("id.outcome", "id.exposure"))       
+  
+  
+  ind_res_dir <- paste0(results_path, current_trait_category, "/merged/tmp/")
+  if (!dir.exists(ind_res_dir)) {stop("The tmp output dir needs to be created!")}
+  write_tsv(out, paste0(ind_res_dir, "MR_BMI-to-", mediator_file_name ,".tsv"))
+  write_tsv(out_sensitivity, paste0(ind_res_dir, "sens_MR_BMI-to-", mediator_file_name ,".tsv"))
+  print(paste0("Finished MR for ", mediator_file_name)) 
+}
+
+```
+
+
+
+```{r}
+## save results for one category into one df
+
+# load all results files into a table to view together
+current_trait_category <- "hormones"
+ind_res_dir <- paste0(results_path, current_trait_category, "/merged/tmp/")
+all.files_mr <- list.files(path = ind_res_dir, pattern = "MR_BMI-to-*", full.names = T)
+
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind) %>% 
+          # create overall trait_type label
+            add_trait_type_out(., category = current_trait_category)
+
+# subset to each MR method and save
+result_ivw <- df %>% 
+                filter(method == "Inverse variance weighted") %>% 
+                select(-method, -or, -or_lci95, -or_uci95) 
+write_tsv(result_ivw, paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+
+```
+
+
+```{r}
+## save Sensitivity results for one category into one df
+
+# load all results files into a table to view together
+current_trait_category <- "physical_traits"
+ind_res_dir <- paste0(results_path, current_trait_category, "/merged/tmp/")
+all.files_mr <- list.files(path = ind_res_dir, pattern = "sens_MR_BMI-to-*", full.names = T)
+
+l <- lapply(all.files_mr, fread)
+
+df <- l %>% reduce(rbind) %>% 
+          # create overall trait_type label
+            add_trait_type_out(., category = current_trait_category)
+
+write_tsv(df, paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-sens_", current_trait_category,".tsv"))
+
+```
+
+# Next section is different plotting setups for each category
+
+## Hormones
+
+```{r}
+current_trait_category <- "hormones" # hormones_splitsample; + remove 3 from pal
+dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+dat<-dat %>% filter(!grepl(",", outcome)) # don't include testosterone subcats
+
+dat %>% kable_it()
+
+
+## mini version
+dat <- dat %>% filter(exposure == "Childhood BMI", 
+                      outcome %in% c("IGF", "Oestradiol" , "SHBG" , "Testosterone (total)", "Testosterone (bioavailable)") ) %>% 
+              mutate(outcome = case_when(outcome == "IGF" ~ "IGF-1",
+                                        TRUE ~ outcome))
+
+pal <- wes_palette("Darjeeling1")[c(2,3,4,5)]
+p1<-ggplot(dat, aes(y=exposure, x=b, label=outcome, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  xlim(-1.2,0.5)+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  geom_vline(xintercept=0, linetype=3) +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title= paste0("Univariate MR results for ",current_trait_category ,", 95% CI") )+
+  theme(legend.position = "none")
+
+ggsave(paste0("figures/BMI-to-",current_trait_category ,"_IVW.png"),
+       plot=p, scale=1, 
+       width=17, height=20,
+       units=c("cm"), dpi=200, limitsize=F)
+
+```
+
+## reproductive_traits 
+
+```{r}
+current_trait_category <- "reproductive_traits"
+dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+dat %>% kable_it()
+
+pal<-rev(unname(yarrr::piratepal("info2")))
+p2<-ggplot(dat, aes(y=exposure, x=b, label=outcome, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  xlim(-1.2,0.5)+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  geom_vline(xintercept=0, linetype=3) +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title= paste0("Univariate MR results for ",current_trait_category ,", 95% CI") )+
+  theme(legend.position = "none")
+
+ggsave(paste0("figures/BMI-to-",current_trait_category ,"_IVW.png"),
+       plot=p, scale=1, 
+       width=17, height=20,
+       units=c("cm"), dpi=200, limitsize=F)
+```
+
+## glycemic_traits 
+
+```{r}
+current_trait_category <- "glycemic_traits"
+dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+dat %>% kable_it()
+
+pal<-c(unname(yarrr::piratepal("pony")))
+p3<-ggplot(dat, aes(y=exposure, x=b, label=outcome, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  xlim(-1.2,0.5)+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  geom_vline(xintercept=0, linetype=3,) +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title= paste0("Univariate MR results for ",current_trait_category ,", 95% CI") )+
+  theme(legend.position = "none")
+
+ggsave(paste0("figures/BMI-to-",current_trait_category ,"_IVW.png"),
+       plot=p, scale=1, 
+       width=17, height=20,
+       units=c("cm"), dpi=200, limitsize=F)
+```
+
+## physical_traits 
+
+```{r}
+current_trait_category <- "physical_traits"
+dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+dat %>% kable_it()
+
+                                         
+pal<-rev(unname(yarrr::piratepal("pony")))
+p4<-ggplot(dat, aes(y=exposure, x=b, label=outcome, shape=exposure, colour=trait_type)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  xlim(-1.2,0.5)+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values = c(19,20)) +
+  geom_vline(xintercept=0, linetype=3,) +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "",y = "", x = "Effect size",
+       title= paste0("Univariate MR results for ",current_trait_category ,", 95% CI") )+
+  theme(legend.position = "none")
+
+ggsave(paste0("figures/BMI-to-",current_trait_category ,"_IVW.png"),
+       plot=p, scale=1, 
+       width=10, height=5,
+       units=c("cm"), dpi=200, limitsize=F)
+```
+
+## Special case for testosterone
+
+```{r}
+current_trait_category <- "hormones"
+dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+
+dat <- dat %>% 
+  filter(grepl("Testosterone", outcome)) %>% 
+  add_trait_type_out(., category = "testosterone")
+  
+pal<-unname(yarrr::piratepal("google"))
+# PLOT V1
+P<-ggplot(dat, aes(y=exposure, x=b, label=outcome,  colour=measure)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+#
+  scale_color_manual(values=pal)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~outcome, ncol=1)+
+  labs(color = "", shape = "", y = "", x = "Effect size",
+       title="      MR results for testosterone, 95% CI\n")+
+  theme(legend.position = "top")
+
+# PLOT V2
+# make faceted testosterone plot
+p1<-dat %>% filter(measure == "Free") %>% 
+  ggplot(aes(y=exposure, x=b, label=measure, colour=measure)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  scale_color_manual(values=pal[1])+
+  xlim(-0.068, 0.62)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~menopause, ncol=3)+
+  labs(color = "",y = "", x = "",
+       title="                     MR results for testosterone, 95% CI\n")+
+  theme(legend.position = "right")
+p2<-dat %>% filter(measure == "Bioavailable") %>% 
+  ggplot(aes(y=exposure, x=b, label=measure,  colour=measure)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  scale_color_manual(values=pal[2])+
+  xlim(-0.068, 0.62)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~menopause, ncol=3)+
+  labs(color = "",y = "", x = "",
+       title="")+
+  theme(legend.position = "right")
+p3<-dat %>% filter(measure == "Total") %>% 
+  ggplot(aes(y=exposure, x=b, label=measure,  colour=measure)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  scale_color_manual(values=pal[3])+
+  xlim(-0.068, 0.62)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~menopause, ncol=3)+
+  labs(color = "",y = "", x = "",
+       title="")+
+  theme(legend.position = "right")
+p4<-dat %>% filter(measure == "Total (old)") %>% 
+  ggplot(aes(y=exposure, x=b, label=measure,  colour=measure)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  scale_color_manual(values=pal[4])+
+  xlim(-0.068, 0.62)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_hgrid(10, rel_small = 1) +
+  facet_wrap(~menopause, ncol=3)+
+  labs(color = "",y = "", x = "Effect size",
+       title="")+
+  theme(legend.position = "right")
+library(patchwork)
+p<- ( p1 ) / (p2) / (p3) / (p4)
+
+```
+
+
+
+# make combined table of all results
+
+```{r, message=F}
+library(stringr)
+trait_categories <- c("hormones",  "reproductive_traits", "glycemic_traits", "physical_traits")
+merged_data <- data.frame()
+
+for (current_trait_category in trait_categories){
+    
+  dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_BMI-to-", current_trait_category,"_IVW.tsv"))
+  dat<-dat %>% 
+        filter(!grepl("-meno", outcome)) %>% 
+        filter(exposure == "Childhood BMI") %>% 
+        mutate(trait_category = str_c(str_split(str_to_title(current_trait_category), "_")[[1]], 
+                                      collapse=" ")) 
+  merged_data<-bind_rows(merged_data, dat)
+}
+merged_data<-select( merged_data, "exposure", "outcome",
+                     "b", "lo_ci","up_ci", "se" , "pval" ,
+                     "nsnp", "trait_category" ,  "trait_type"  )
+
+merged_data %>% tidy_pvals() %>% View()
+
+merged_data %>% tidy_pvals() %>% select(-trait_type) %>% write_tsv(paste0(results_path, "_merged_results/results_MR_cBMI_mediators.tsv"))
+
+```
+
+# Combined plot of all results
+```{r}
+
+merged_data<-read_tsv(paste0(results_path, "_merged_results/results_MR_cBMI_mediators.tsv"))
+
+merged_data <- merged_data %>% 
+              filter(outcome %in% 
+                      c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
+                      "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
+                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B", "HOMA-IR",
+                      "Childhood height", "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
+              mutate(outcome = ifelse(trait_category != "Hormones", 
+                                       gsub(" \\(.*\\)", "", outcome), outcome)) %>% 
+              mutate(outcome = case_when(outcome == "fasting insulin" ~ "Fasting Insulin",
+                                         outcome == "fasting glucose" ~ "Fasting Glucose",
+                                         outcome == "IGF" ~ "IGF-1",
+                                         outcome == "Percent mammographic density " ~ "Mammographic density (%)",
+                                         outcome == "Childhood height" ~ "Age 10 height",
+                                              
+                                         TRUE ~ outcome))
+              
+  
+
+
+merged_data$outcome <- factor(merged_data$outcome , levels = sort(merged_data$outcome))
+merged_data$outcome<- forcats::fct_rev(merged_data$outcome)
+
+merged_data$trait_category <- forcats::fct_inorder(merged_data$trait_category)
+
+pal<-c(wes_palette("Darjeeling1")[c(2:5)])
+
+
+p<-ggplot(merged_data, aes(y=outcome, x=b, label=exposure , group = trait_category, colour=trait_category)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2, shape=20)+
+  scale_color_manual(values=pal)+
+  #xlim(0.43, 2.5)+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_grid(9) +
+  facet_grid(trait_category~exposure, scale="free")+
+  theme(strip.text = element_text(face = 'bold'))+
+  labs(color = "",y = "", x = "Effect size", subtitle="",
+       title= paste0("                 Univariate MR: effect of childhood BMI on mediators (effect size, 95% CI)") )+
+  theme(legend.position = "none",  plot.title.position = "plot")
+
+
+ggsave(paste0("figures/merged_cBMI-to-mediators_IVW.png"),
+       plot=p, scale=1.2, 
+       width=15, height=12,
+       units=c("cm"), dpi=300, limitsize=F)
+```
+
+```{r}
+# p is plot above, p2 is from 03
+
+library(cowplot)
+x<-plot_grid(p, p2, labels = c('A', 'B'), nrow=1)
+
+ggsave(paste0("figures/merged_2-stepMR.png"),
+       plot=x, scale=1.2, 
+       width=25, height=12,
+       units=c("cm"), dpi=300, limitsize=F)
+```
+
+
+
