@@ -146,7 +146,7 @@ _From exploratory_
 
 ## e-poster created for NCRI Virtual conference 2020
 
-[][e-poster_NCRI.png]
+<img src="e-poster_NCRI.png" width="1000"> 
 
 
 
