@@ -9,13 +9,13 @@ This README contains:
 - project background and aims
 - outline of the project work/code stored in this repo
 
-<br>
+
 ### E-poster created for NCRI Virtual conference 2020
 
 <img src="e-poster_NCRI.png" width="1000"> 
 
 
-<br>
+
 ### Project Background 
 
 Multiple observational studies and a recent MR study (Richardson et al., 2020) have shown that early life adiposity may be protective against later-life breast cancer. The biological mechanism underlying this effect is unclear but is likely to independent of adiposity in adulthood. In this project, the aim is to identify potential mediators of the protective effect of high childhood BMI on breast cancer risk. 
