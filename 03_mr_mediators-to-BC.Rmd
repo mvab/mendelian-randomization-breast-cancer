@@ -418,33 +418,28 @@ merged_data %>% tidy_pvals() %>% write_tsv(paste0(results_path, "_merged_results
 
 # Combined plot of all results
 ```{r}
-
 merged_data<-read_tsv(paste0(results_path, "_merged_results/results_MR_mediators_BCAC", bc_data,".tsv"))
-
 merged_data <- merged_data %>% 
               filter(exposure %in% 
                       c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
                       "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
                       "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B", "HOMA-IR",
-                      "Childhood height", "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
+                       "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
               mutate(exposure = ifelse(trait_category != "Hormones", 
                                        gsub(" \\(.*\\)", "", exposure), exposure)) %>% 
               mutate(exposure = case_when(exposure == "fasting insulin" ~ "Fasting Insulin",
                                          exposure == "fasting glucose" ~ "Fasting Glucose",
                                          exposure == "IGF" ~ "IGF-1",
                                          exposure == "Percent mammographic density " ~ "Mammographic density (%)",
-                                         exposure == "Childhood height" ~ "Age 10 height",
                                               
                                          TRUE ~ exposure))
               
   
-
-
+merged_data$outcome <- "Breast cancer (outcome)"
 merged_data$exposure <- factor(merged_data$exposure , levels = sort(merged_data$exposure))
 merged_data$exposure<- forcats::fct_rev(merged_data$exposure)
-
 merged_data$trait_category <- forcats::fct_inorder(merged_data$trait_category)
-
+#write_tsv(merged_data, paste0(results_path, "_merged_results/results_MR_mediators_BCAC", bc_data,"_fig_input.tsv"))
 pal<-c(wes_palette("Darjeeling1")[c(2:5)])
 p2<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_category, colour=trait_category)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
@@ -452,14 +447,14 @@ p2<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_cate
   scale_color_manual(values=pal)+
   #xlim(0.43, 2.5)+
   geom_vline(xintercept=1, linetype='longdash') +
-  theme_minimal_grid(9) +
+  theme_minimal_grid(11) +
   facet_grid(trait_category~outcome, scale="free", switch="x")+
   theme(strip.text = element_text(face = 'bold'))+
-  labs(color = "",y = "", x = "Odds ratio", subtitle="",
-       title= paste0("                              Univariate MR: effect of mediators on breast cancer (OR, 95% CI)") )+
+  labs(color = "",y = "", x = "Odds ratio",
+       title=" "
+      # title= paste0("                              Univariate MR: effect of mediators on breast cancer (OR, 95% CI)") 
+      )+
   theme(legend.position = "none",  plot.title.position = "plot")
-
-
 ggsave(paste0("figures/merged_mediators-to-BCAC_", bc_data,"_IVW.png"),
        plot=p2, scale=1.2, 
        width=15, height=12,

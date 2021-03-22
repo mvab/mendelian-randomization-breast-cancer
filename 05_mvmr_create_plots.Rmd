@@ -242,7 +242,7 @@ merged_data$exposure <- factor(merged_data$exposure , levels = sort(merged_data$
 merged_data$exposure<- forcats::fct_rev(merged_data$exposure)
 
 merged_data$trait_category <- forcats::fct_inorder(merged_data$trait_category)
-
+#write_tsv(merged_data, paste0(results_path, "_merged_results/results_MVMR_mediators_BCAC", bc_data, mvmr_method,"_fig_input.tsv"))
 
 pal<-c(wes_palette("Darjeeling1")[c(2:5)])
 p<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_category, colour=trait_category)) +
@@ -327,7 +327,7 @@ dat <- dat %>% filter(trait_type %in% c("IGF", "SHBG","Testosterone", "menarche"
 
 
 # create a new label
-dat$direct <- paste0("Childhood BMI accounted for " , dat$pair)
+dat$direct <- paste0("Childhood body size accounted for " , dat$pair)
 # create other custom label
 dat$nsnp_mediator <- rep(dat$nsnp[c(FALSE, TRUE)], each=2)
 dat$custom_label <- paste0(dat$pair, " (nsnp cBMI: ", dat$nsnp, "; nsnp Med: ", dat$nsnp_mediator, ")" )
@@ -351,7 +351,7 @@ cBMI_OR2 <- basic_model2 %>% filter(exposure == "Childhood BMI") %>% pull(or)
 
 #pal<-c(wes_palette("Darjeeling1")[c(1,4,2,5,3)])
 dat_BMI$outcome<-"Breast cancer"
-
+dat_BMI<- dat_BMI %>% mutate(direct = gsub("BMI", "body size", direct))
  
 p2<-ggplot(dat_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=bmi_no_bmi)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
@@ -366,14 +366,15 @@ p2<-ggplot(dat_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=bmi_
   #facet_wrap(~outcome, ncol=1)+
   facet_grid(~outcome, scale="free", switch="x")+
   #facet_grid(trait_category~outcome, scale="free", switch="x")+
-  labs(color = "",y = "", x = "Odds ratio", subtitle="",
-       title="          MVMR: direct effect of childhood BMI on breast cancer (OR, 95% CI) ")+
+labs(color = "",y = "", x = "Odds ratio", subtitle=""
+       #title="         MVMR: direct effect of childhood body size on breast cancer (OR, 95% CI) "
+       )+
   theme(legend.position = "none")+#, plot.title.position = "plot")+
   theme(axis.text.y = element_text(colour = dat_BMI$text_col))
 
-ggsave(paste0("figures/merged_cBMI_direct-to-BCAC_", bc_data,"_IVW", mvmr_method,".png"),
+ggsave(paste0("figures/merged_cBMI_direct-to-BCAC_", bc_data,"_IVW", mvmr_method,"_subset_tidy.png"),
        plot=p2, scale=1.2, 
-       width=12, height=10,
+       width=12, height=7,
        units=c("cm"), dpi=300, limitsize=F)
 
 
@@ -547,10 +548,9 @@ merged_data %>%
 merged_data %>% 
       write_tsv(paste0(results_path, "_merged_results/results_MVMR_height_all_BCAC", bc_data, mvmr_method, ".tsv"))
 ```
-
-
-
-## new analysis: try putting together estimates from all different parts
+	
+	
+## new analysis: try putting together estimates from MVMR (+adult BMI, childhood heigth)
 
 ```{r}
 mvmr_method<- "_using_2SMR"  
@@ -590,16 +590,16 @@ data_all_reshaped<-
     filter(method == 1) %>% 
     select(-or_lci95, -or_uci95, -method) %>% 
     rename("analysis_type" = "or") %>% 
-    mutate(analysis_type= case_when(analysis_type == "data1" ~ "MVMR: childhood BMI + mediator",
-                                    analysis_type == "data2" ~ "MVMR: childhood BMI + adult BMI + mediator",
-                                    analysis_type == "data3" ~ "MVMR: childhood BMI + childhood height + mediator", 
+    mutate(analysis_type= case_when(analysis_type == "data1" ~ "MVMR: childhood body size + mediator",
+                                    analysis_type == "data2" ~ "MVMR: childhood body size + adult body size + mediator",
+                                    analysis_type == "data3" ~ "MVMR: childhood body size + childhood height + mediator", 
                                     TRUE ~ analysis_type))
   
 # set the order in which they apper in th eplot
 data_all_reshaped$analysis_type <- factor(data_all_reshaped$analysis_type ,
-                               levels = rev(c("MVMR: childhood BMI + mediator", 
-                                              "MVMR: childhood BMI + adult BMI + mediator",
-                                              "MVMR: childhood BMI + childhood height + mediator")))
+                               levels = rev(c("MVMR: childhood body size + mediator", 
+                                              "MVMR: childhood body size + adult body size + mediator",
+                                              "MVMR: childhood body size + childhood height + mediator")))
 
 data_all_reshaped_sub <- data_all_reshaped %>% filter(exposure %in% c("IGF", "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)", "Age at menarche (Perry)","Age at menopause (Day)"))
 
@@ -620,20 +620,81 @@ p<-ggplot(data_all_reshaped_sub,
   geom_vline(xintercept=1, linetype='longdash') +
   scale_color_manual(values=c("#FF0060", "#B80041", "#5E0224"))+
   theme(strip.text = element_text(face = 'bold'),
-        panel.grid.major.y = element_blank())+
-  labs(color = "",y = "", x = "OR of direct effect",
-       subtitle="                   accounted for adult BMI or childhood height: ",
-       title= "               MVMR: direct effect of mediators on breast cancer" )+
-  theme(legend.position = "top", legend.direction = "vertical", 
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(),
+        )+
+  labs(color = "",y = "", x = "OR of direct effect"
+       #subtitle="                   accounted for adult BMI or childhood height: ",
+       #title= "               MVMR: direct effect of mediators on breast cancer" 
+       )+
+  theme(legend.position = "bottom", legend.direction = "vertical", 
         plot.title.position = "plot")
-
-# todo:
-
-# x axis lines?? 
-
-
 ```
-
+## Putting total and direct effects of mediators together in one plot
+```{r}
+data1 <- 
+  read_tsv(paste0(results_path, "_merged_results/results_MR_mediators_BCAC", bc_data,"_fig_input.tsv")) %>% 
+  select(exposure, or, or_lci95, or_uci95) %>% 
+  rename('or_data1' = 'or', "or_lci95_data1" = "or_lci95", "or_uci95_data1"="or_uci95")
+data2 <- 
+  read_tsv(paste0(results_path, "_merged_results/results_MVMR_mediators_BCAC", bc_data, mvmr_method,"_fig_input.tsv")) %>% 
+  select(exposure, or, or_lci95, or_uci95) %>% 
+  rename('or_data2' = 'or', "or_lci95_data2" = "or_lci95", "or_uci95_data2"="or_uci95")
+# join and tidy up data
+data_all <- full_join(data1, data2, by="exposure") %>% 
+              drop_na()
+# convert to format for plotting  
+data_all_reshaped<-
+  data_all %>% 
+    pivot_longer(cols = c( "or_data1" , "or_data2" ), names_to = "or", values_to = "indirect_or") %>%
+    pivot_longer(cols = c( "or_lci95_data1" , "or_lci95_data2" ), names_to = "or_lci95", values_to = "indirect_or_lci95") %>% 
+    pivot_longer(cols = c( "or_uci95_data1" , "or_uci95_data2" ), names_to = "or_uci95", values_to = "indirect_or_uci95") %>% 
+    mutate(or = gsub("or_", "", or)) %>% 
+    mutate(or_lci95 = gsub("or_lci95_", "", or_lci95)) %>%
+    mutate(or_uci95 = gsub("or_uci95_", "", or_uci95)) %>% 
+    mutate(method = ifelse(or == or_lci95 & or_lci95 == or_uci95, 1, 0)) %>% 
+    filter(method == 1) %>% 
+    select(-or_lci95, -or_uci95, -method) %>% 
+    rename("analysis_type" = "or") %>% 
+    mutate(analysis_type= case_when(analysis_type == "data1" ~ "Total effect (uniMR)",
+                                    analysis_type == "data2" ~ "Direct effect (MVMR)",
+                                    TRUE ~ analysis_type))
+  
+# set the order in which they apper in th eplot
+data_all_reshaped$analysis_type <- factor(data_all_reshaped$analysis_type ,
+                               levels = rev(c("Direct effect (MVMR)",
+                                              "Total effect (uniMR)")))
+data_all_reshaped_sub <-
+  data_all_reshaped %>% 
+  filter(exposure %in% c("IGF-1", "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", 
+                         "Testosterone (total)", "Age at menarche","Age at menopause", "HBa1c"))
+# set the order in which they apper in th eplot
+data_all_reshaped_sub$exposure <- 
+                  factor(data_all_reshaped_sub$exposure ,
+                          levels = rev(c("IGF-1", "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", 
+                         "Testosterone (total)", "Age at menarche","Age at menopause" , "HBa1c")))
+p<-ggplot(data_all_reshaped_sub,
+           aes(y=exposure, x=indirect_or, 
+               label=analysis_type , group = analysis_type, colour=analysis_type, shape=analysis_type)) +
+  geom_point(size=3, shape=20, 
+             position = ggstance::position_dodgev(height = 0.5))+
+  geom_errorbarh(aes(xmin=indirect_or_lci95, xmax=indirect_or_uci95), height=.1, 
+            position = ggstance::position_dodgev(height = 0.5)) +
+  scale_x_continuous(breaks=seq(0.7,1.4,0.1))+
+  theme_minimal_hgrid(10) +
+  geom_vline(xintercept=1, linetype='longdash') +
+  scale_shape_manual(values = c(19,17)) +
+  scale_color_manual(values=c("#0E5888", "#9BD7D6"))+
+  theme(strip.text = element_text(face = 'bold'),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line())+
+  labs(color = "",y = "", x = "OR"
+       #subtitle="                   from step2 MR and MVMR analyses ",
+       #title= "         MR: total and direct effects of mediators on breast cancer (OR, 95%)" 
+       )+
+  theme(legend.position = "bottom", legend.direction = "vertical", 
+        plot.title.position = "plot")
+```
 
 
 
@@ -657,7 +718,7 @@ dat_univ<- read_tsv(paste0(results_path, current_trait_category,
   mutate(mr="Univariable MR")
 
 
-dat_mv <- read_tsv(paste0(results_path, current_trait_category, "/merged/mvmr_BMIs-BCAC_", bc_data,".tsv")) %>% 
+dat_mv <- read_tsv(paste0(results_path, current_trait_category, "/merged/mvmr_BMIs-BCAC_", bc_data,"_using_2SMR.tsv")) %>% 
   mutate(mr="Multivariable MR")
 
 dat<-bind_rows(dat_univ, dat_mv)

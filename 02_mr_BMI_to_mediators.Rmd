@@ -471,30 +471,70 @@ p<-ggplot(merged_data, aes(y=outcome, x=b, label=exposure , group = trait_catego
   scale_color_manual(values=pal)+
   #xlim(0.43, 2.5)+
   geom_vline(xintercept=0, linetype='longdash') +
-  theme_minimal_grid(9) +
+
+  theme_minimal_grid(11) +
   facet_grid(trait_category~exposure, scale="free")+
   theme(strip.text = element_text(face = 'bold'))+
-  labs(color = "",y = "", x = "Effect size", subtitle="",
-       title= paste0("                 Univariate MR: effect of childhood BMI on mediators (effect size, 95% CI)") )+
+  labs(color = "",y = "", x = "Effect size"
+       #subtitle="",
+       #title= paste0("                    Univariate MR: effect of childhood body size on mediators (effect size, 95% CI)") 
+       )+
   theme(legend.position = "none",  plot.title.position = "plot")
-
-
 ggsave(paste0("figures/merged_cBMI-to-mediators_IVW.png"),
        plot=p, scale=1.2, 
        width=15, height=12,
        units=c("cm"), dpi=300, limitsize=F)
 ```
-
 ```{r}
 # p is plot above, p2 is from 03
-
 library(cowplot)
-x<-plot_grid(p, p2, labels = c('A', 'B'), nrow=1)
-
-ggsave(paste0("figures/merged_2-stepMR.png"),
+x<-plot_grid(p, p2, labels = c('A', 'B'), nrow=1) # p2 is from 03_...Rmd
+ggsave(paste0("figures/merged_2-stepMR_new.png"),
        plot=x, scale=1.2, 
-       width=25, height=12,
+       width=25, height=13,
        units=c("cm"), dpi=300, limitsize=F)
+```
+Combined plot of full data VS split sample data
+```{r}
+full_data<-read_tsv(paste0(results_path, "_merged_results/results_MR_cBMI_mediators.tsv"))
+full_data <- full_data %>% 
+              filter(trait_category == "Hormones",
+                     !outcome %in% c("Oestradiol", "Testosterone (free)") )%>% 
+              mutate(outcome = case_when(outcome == "IGF" ~ "IGF-1",
+                                         TRUE ~ outcome),
+                     outcome_type = outcome, 
+                     exposure = "Childhood body size (full / part 1)",
+                     data_used = "Full sample") %>% 
+              select(-trait_category)
+split_data<- read_tsv(paste0(results_path, "hormones_splitsample", "/merged/merged_mr_BMI-to-", "hormones_splitsample", "_IVW.tsv"))
+split_data<- split_data %>% filter(!grepl("meno", outcome)) %>% 
+                            mutate(outcome_type = case_when(outcome == "IGF (part2)" ~ "IGF-1",
+                                                       outcome == "SHBG (part2)" ~ "SHBG",
+                                                       outcome == "Testosterone (bioavailable, part2)" ~ "Testosterone (bioavailable)",
+                                                       outcome == "Testosterone (total, part2)" ~ "Testosterone (total)",
+                                                       
+                                                                   TRUE ~ outcome),
+                                               exposure = "Childhood body size (full / part 1)",
+                                   data_used = "Split sample") %>% 
+                            select(-trait_type)
+merged_data <-bind_rows(full_data, split_data)
+merged_data$outcome <- factor(merged_data$outcome , levels = sort(merged_data$outcome))
+merged_data$outcome<- forcats::fct_rev(merged_data$outcome)
+pal<-c(wes_palette("Darjeeling1")[c(2,4,5,5)], wes_palette("Darjeeling1")[c(2,4,5,5)])
+p<- ggplot(merged_data, 
+          aes(y=outcome, x=b, label=exposure , group = outcome_type, colour=outcome_type, shape = data_used)) +
+  geom_errorbarh(aes(xmin=lo_ci, xmax=up_ci), height=.3) +
+  geom_point(size=2)+
+  scale_color_manual(values=pal)+
+  scale_shape_manual(values=c(16,1))+
+  geom_vline(xintercept=0, linetype='longdash') +
+  theme_minimal_grid(10) +
+  facet_grid(data_used~exposure, scale="free")+
+  theme(strip.text = element_text(face = 'bold'))+
+  labs(color = "",y = "", x = "Effect size", 
+       title= paste0("                    Univariate MR: effect of childhood body size on mediators"), 
+       subtitle = c("                     Full sample (exposure and outcome) vs Split sample (part 1: exposure, part 2: outcome)"))+
+  theme(legend.position = "none",  plot.title.position = "plot")
 ```
 
 
