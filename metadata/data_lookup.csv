@@ -23,7 +23,7 @@ NA,NA,NA,totaltest_female_Ruth2020.csv,Testosterone (total) Ruth,csv2,NA,testost
 ieu_gwas_pipeline,totaltest_female_invnormal_imputed.txt.gz,testosterone_total_GWAS_tidy_outcome.txt.gz,testosterone_total_tophits.tsv,Testosterone (total),tsv,NA,testosterone_total,hormones
 ieu_gwas_pipeline,totaltest_female_nomeno_invnormal_imputed.txt.gz,testosterone_total_pre-meno_GWAS_tidy_outcome.txt.gz,testosterone_total_pre-meno_tophits.tsv,"Testosterone (total, pre-meno)",tsv,NA,testosterone_total_pre-meno,hormones
 ieu_gwas_pipeline,totaltest_female_meno_invnormal_imputed.txt.gz,testosterone_total_post-meno_GWAS_tidy_outcome.txt.gz,testosterone_total_post-meno_tophits.tsv,"Testosterone (total, post-meno)",tsv,NA,testosterone_total_post-meno,hormones
-ieu_gwas_pipeline,earlyBMI_female_splitsample_p1_imputed.txt.gz,earlybmi_splitsample_p1_GWAS_tidy_outcome.txt.gz,earlybmi_splitsample_p1_tophits.tsv,Childhood BMI (part1),tsv,NA,earlybmi_splitsample_p1,bmi_splitsample
+ieu_gwas_pipeline,earlyBMI_female_splitsample_p1_imputed.txt.gz,earlybmi1_female_gwas_v2_match_repr_GWAS_tidy_outcome.txt.gz,earlybmi1_female_gwas_v2_match_repr_tophits.tsv,Childhood BMI (part1),tsv,NA,earlybmi_splitsample_p1,bmi_splitsample
 ieu_gwas_pipeline,shbg_female_splitsample_p2_imputed.txt.gz,shbg_splitsample_p2_GWAS_tidy_outcome.txt.gz,shbg_splitsample_p2_tophits.tsv,SHBG (part2),tsv,NA,shbg_splitsample_p2,hormones_splitsample
 ieu_gwas_pipeline,igf1_female_splitsample_p2_imputed.txt.gz,igf_splitsample_p2_GWAS_tidy_outcome.txt.gz,igf_splitsample_p2_tophits.tsv,IGF (part2),tsv,NA,igf_splitsample_p2,hormones_splitsample
 ieu_gwas_pipeline,totaltestosterone_female_splitsample_p2_imputed.txt.gz,testosterone_total_splitsample_p2_GWAS_tidy_outcome.txt.gz,testosterone_total_splitsample_p2_tophits.tsv,"Testosterone (total, part2)",tsv,NA,testosterone_total_splitsample_p2,hormones_splitsample
@@ -36,13 +36,6 @@ NA,NA,NA,NA,Age at first live birth (UKB),mrbase,ukb-b-12405,age_at_first_live_b
 NA,NA,NA,NA,Number of births (UKB),mrbase,ukb-b-1209,number_of_births_ukb,reproductive_traits
 NA,NA,NA,NA,Age at menopause (UKB),mrbase,ukb-b-17422,age_at_menopause_ukb,reproductive_traits
 NA,NA,NA,NA,Age at menopause (Day),mrbase,ieu-a-1004,age_at_menopause_day,reproductive_traits
-NA,NA,NA,NA,fasting insulin (Scott),mrbase,ieu-a-778,fasting_insulin_scott,glycemic_traits
-NA,NA,NA,NA,fasting insulin (Manning),mrbase,ieu-a-775,fasting_insulin_manning,glycemic_traits
-NA,NA,NA,NA,fasting glucose (Scott),mrbase,ieu-a-777,fasting_glucose_scott,glycemic_traits
-NA,NA,NA,NA,fasting glucose (Manning),mrbase,ieu-a-773,fasting_glucose_manning,glycemic_traits
-NA,NA,NA,NA,HOMA-IR,mrbase,ieu-a-771,homa-ir,glycemic_traits
-NA,NA,NA,NA,HOMA-B,mrbase,ieu-a-770,homa-b,glycemic_traits
-NA,NA,NA,NA,HBa1c,mrbase,ieu-a-758,hba1c,glycemic_traits
 Lagou2019,FG_STAGE1_2_3_SEX_GWAS_updated_2019.txt.gz,fasting_glucose_lagou_GWAS_tidy_outcome.txt.gz,fasting_glucose_lagou_tophits.tsv,fasting glucose (Lagou),tsv,NA,fasting_glucose_lagou,glycemic_traits
 Lagou2019,FI_STAGE1_2_3_SEX_GWAS_updated_2019.txt.gz,fasting_insulin_lagou_GWAS_tidy_outcome.txt.gz,fasting_insulin_lagou_tophits.tsv,fasting insulin (Lagou),tsv,NA,fasting_insulin_lagou,glycemic_traits
 Wheeler2017,HbA1c_METAL_European.txt.gz,hba1c_wheeler_GWAS_tidy_outcome.txt.gz,hba1c_wheeler_tophits.tsv,HBa1c (Wheeler),tsv,NA,hba1c_wheeler,glycemic_traits
@@ -51,4 +44,23 @@ NA,NA,NA,breast_size_pickrell_tophits.tsv,Breast size (Pickrell 2016),tsv,NA,bre
 NA,NA,NA,breast_size_eriksson_tophits.tsv,Breast size (Eriksson2012),tsv,NA,breast_size_eriksson,physical_traits
 NA,NA,NA,mammographic_density_lindstorm_tophits.tsv,Mammographic density (Lindstorm 2014),tsv,NA,mammographic_density_lindstorm,physical_traits
 NA,NA,NA,mammographic_density_brand_tophits.tsv,Mammographic density (Brand 2018),tsv,NA,mammographic_density_brand,physical_traits
-ieu_gwas_pipeline,height_10.txt.gz,early_height_GWAS_tidy_outcome.txt.gz,early_height_tophits.tsv,Childhood height,tsv,NA,early_height,physical_traits
+ieu_gwas_pipeline,height_10.txt.gz,early_height_GWAS_tidy_outcome.txt.gz,early_height_tophits.tsv,Childhood height,tsv,NA,early_height,physical_traits_notused
+NA,NA,NA,NA,fasting insulin (Scott) [reupload],mrbase,ieu-b-116,fasting_insulin_scott_reupload,glycemic_traits
+NA,NA,NA,NA,fasting insulin (Manning) [reupload],mrbase,ieu-b-115,fasting_insulin_manning_reupload,glycemic_traits
+NA,NA,NA,NA,fasting glucose (Scott) [reupload],mrbase,ieu-b-114,fasting_glucose_scott_reupload,glycemic_traits
+NA,NA,NA,NA,fasting glucose (Manning) [reupload],mrbase,ieu-b-113,fasting_glucose_manning_reupload,glycemic_traits
+NA,NA,NA,NA,HOMA-B [reupload],mrbase,ieu-b-117,homa-b_reupload,glycemic_traits
+NA,NA,NA,NA,HBa1c [reupload],mrbase,ieu-b-103,hba1c_reupload,glycemic_traits
+ieu_gwas_pipeline,aam_2_gwas.txt.gz,age_at_menarche_ukb_p2_GWAS_tidy_outcome.txt.gz,age_at_menarche_ukb_p2_tophits.tsv,"Age at menarche (UKB, part2)",tsv,NA,age_at_menarche_ukb_p2,reproductive_traits_splitsample
+ieu_gwas_pipeline,afb_2_gwas.txt.gz,age_at_first_live_birth_ukb_p2_GWAS_tidy_outcome.txt.gz,age_at_first_live_birth_ukb_p2_tophits.tsv,"Age at first live birth (UKB, part2)",tsv,NA,age_at_first_live_birth_ukb_p2,reproductive_traits_splitsample
+ieu_gwas_pipeline,neb_2_gwas.txt.gz,number_of_births_ukb_p2_GWAS_tidy_outcome.txt.gz,number_of_births_ukb_p2_tophits.tsv,"Number of births (UKB, part2)",tsv,NA,number_of_births_ukb_p2,reproductive_traits_splitsample
+ieu_gwas_pipeline,meno_2_gwas.txt.gz,age_at_menopause_ukb_p2_GWAS_tidy_outcome.txt.gz,age_at_menopause_ukb_p2_tophits.tsv,"Age at menopause (UKB, part2)",tsv,NA,age_at_menopause_ukb_p2,reproductive_traits_splitsample
+ieu_gwas_pipeline,aam_1_gwas.txt.gz,age_at_menarche_ukb_p1_GWAS_tidy_outcome.txt.gz,age_at_menarche_ukb_p1_tophits.tsv,"Age at menarche (UKB, part1)",tsv,NA,age_at_menarche_ukb_p1,reproductive_traits_splitsample
+ieu_gwas_pipeline,afb_1_gwas.txt.gz,age_at_first_live_birth_ukb_p1_GWAS_tidy_outcome.txt.gz,age_at_first_live_birth_ukb_p1_tophits.tsv,"Age at first live birth (UKB, part1)",tsv,NA,age_at_first_live_birth_ukb_p1,reproductive_traits_splitsample
+ieu_gwas_pipeline,neb_1_gwas.txt.gz,number_of_births_ukb_p1_GWAS_tidy_outcome.txt.gz,number_of_births_ukb_p1_tophits.tsv,"Number of births (UKB, part1)",tsv,NA,number_of_births_ukb_p1,reproductive_traits_splitsample
+ieu_gwas_pipeline,meno_1_gwas.txt.gz,age_at_menopause_ukb_p1_GWAS_tidy_outcome.txt.gz,age_at_menopause_ukb_p1_tophits.tsv,"Age at menopause (UKB, part1)",tsv,NA,age_at_menopause_ukb_p1,reproductive_traits_splitsample
+ieu_gwas_pipeline,earlybmi1_female_gwas_v2_match_repr_imputed.txt.gz,earlybmi1_female_gwas_v2_match_repr_GWAS_tidy_outcome.txt.gz,earlybmi1_female_gwas_v2_match_repr_tophits.tsv,Childhood BMI (part1),tsv,NA,earlybmi1_female_gwas_v2_match_repr,bmi_splitsample_v2
+ieu_gwas_pipeline,earlybmi2_female_gwas_v2_match_repr_imputed.txt.gz,earlybmi2_female_gwas_v2_match_repr_GWAS_tidy_outcome.txt.gz,earlybmi2_female_gwas_v2_match_repr_tophits.tsv,Childhood BMI (part2),tsv,NA,earlybmi2_female_gwas_v2_match_repr,bmi_splitsample_v2
+NA,NA,NA,mammographic_density_DA_sieh_tophits.tsv,Mammographic density (dense area) (Sieh 2020),tsv,NA,mammographic_density_DA_sieh,physical_traits
+NA,NA,NA,mammographic_density_NDA_sieh_tophits.tsv,Mammographic density (non-dense area) (Sieh 2020),tsv,NA,mammographic_density_NDA_sieh,physical_traits
+NA,NA,NA,mammographic_density_PD_sieh_tophits.tsv,Mammographic density (per cent)  (Sieh 2020),tsv,NA,mammographic_density_PD_sieh,physical_traits
