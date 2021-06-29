@@ -70,59 +70,43 @@ get_mv_exposures <- function(exposure_list, full_gwas_list, clump_exposures=FALS
 
 
 
-## NB: this is a shortcut from exposure_dat in 2SMR to exposures_joined (from manual steps)
-# `exposure_dat` is from  `exposure_dat <- rbind.fill(dh1x, dh2x) ...` above, 
-# it is used to generate equivant of `exposures_joined` from manual steps, but here
-# it is called `exposures_joined_auto`
-
 #  function to convert 2SMR format into MVMR format
-make_mvmr_input <- function(exposure_dat, exposure_list, outcome.id.mrbase="", outcome.data=""){
-  # specify one or the other outcome agrument (provide MRbase ID or supply outcome data)
+make_mvmr_input <- function(exposure_dat, outcome.id.mrbase="", outcome.data=""){
+  # provide exposure_dat created in the same way as for TwoSampleMR 
+  # also specify the outcome argument [only ONE!] (MR-base ID or full gwas data in .outcome format)
   
-  exposures_joined_auto <- exposure_dat %>%
-    select(SNP, beta.exposure, se.exposure, exposure) %>% 
-    # conver to wider format
-    pivot_wider(names_from = exposure, values_from = c(beta.exposure, se.exposure)) 
-
-  
-  # Outcomes
-  
-  # extract SNPs for both exposures from outcome dataset 
+  # extract SNPs for both exposures from outcome dataset
+  # (for the selected option mr.base or local outcome data)
   if (outcome.id.mrbase != "") {
-    # if mrbase.id is given
-    outcome_dat <- extract_outcome_data(snps = exposures_joined_auto$SNP,
+    # if mrbase.id is provided
+    outcome_dat <- extract_outcome_data(snps = unique(exposure_dat$SNP),
                                         outcomes = outcome.id.mrbase)
   } else if (outcome.data != ""){
-    # if outcome df is given
+    # if outcome df is provided
     outcome_dat <- outcome.data %>% filter(SNP %in% exposures_joined_auto$SNP)
   }
   
-  # harmonize datasets 
-  exposures <- exposure_list %>% purrr::reduce(bind_rows) %>% flip_same_snp()
-  outcome_harmonised <- harmonise_data(exposures, outcome_dat)
+  # harmonize datasets
+  exposure_dat <- exposure_dat %>% mutate(id.exposure = exposure)
+  outcome_harmonised <- mv_harmonise_data(exposure_dat, outcome_dat)
   
   
-  # Create variables for MV
-  # remove factors structure in SNPs, and sort by SNP (YGs and XGs must have SNPs in the same order)
-  YG <- outcome_harmonised %>% 
-    select("SNP", "beta.outcome", "se.outcome") %>%
-    distinct() %>%
-    mutate(SNP = as.character(SNP)) %>%
-    arrange((SNP)) 
-  XGs <- exposures_joined_auto %>% 
-    filter(SNP %in% outcome_harmonised$SNP) %>%
-    mutate(SNP = as.character(SNP)) %>%
-    arrange((SNP)) 
+  # Create variables for the analysis
+  XGs <- data.frame(betaX1 = outcome_harmonised$exposure_beta[,1],
+                    betaX2 = outcome_harmonised$exposure_beta[,2],
+                    seX1 = outcome_harmonised$exposure_se[,1],
+                    seX2 = outcome_harmonised$exposure_se[,2]) %>% 
+    rownames_to_column('SNP')
   
-  # some checks
-  stopifnot(dim(XGs)[1]==dim(YG)[1])
-  unique(YG$SNP %in% XGs$SNP)
-  unique(XGs$SNP %in% YG$SNP)
-  all.equal(YG$SNP, XGs$SNP)
+  YG <- data.frame(beta.outcome = outcome_harmonised$outcome_beta,
+                   se.outcome = outcome_harmonised$outcome_se) %>% 
+    rownames_to_column('SNP')
+  
+  exposures_order <- colnames(outcome_harmonised$exposure_beta)
   
   return(list(YG = YG,
-              XGs = XGs))
-  
+              XGs = XGs,
+              exposures = exposures_order))
 }
 
 

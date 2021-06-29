@@ -101,18 +101,18 @@ write_tsv(mv_res_bmis, paste0(results_path, "bmi/merged/mvmr_BMIs-BCAC_", bc_dat
 
 
 # create MVMR package input
-mvmr_input <- make_mvmr_input(exposure_dat, exposure_list, outcome.id.mrbase=breast_cancer_id)
+mvmr_input <- make_mvmr_input(exposure_dat, outcome.id.mrbase=breast_cancer_id)
 
 # format data to be in MVMR package-compatiable df
-mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta.")),
-                        BYG = mvmr_input$YG$beta.outcome,
-                        seBXGs = mvmr_input$XGs %>% select(contains("se.")),
-                        seBYG = mvmr_input$YG$se.outcome,
-                        RSID = mvmr_input$XGs$SNP)
+mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta")),  # exposure betas
+                        BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
+                        seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
+                        seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
+                        RSID = mvmr_input$XGs$SNP)                               # SNPs
 #  estimate causal effects using method in MVMR package
 mvmr_res <-ivw_mvmr(r_input=mvmr_out) %>% 
            tidy_mvmr_output() %>% 
-           mutate(exposure = unique(exposure_dat$exposure),
+           mutate(exposure = mvmr_input$exposures,
                   outcome = breast_cancer_id)
 
 write_tsv(mvmr_res, paste0(results_path, "bmi/merged/mvmr_BMIs-BCAC_", bc_data, "_using_MVMR",".tsv"))
@@ -284,18 +284,18 @@ for (i in 1:length(mediators)){
     ## sensitivity analysis
     
     # create MVMR package input
-    mvmr_input <- make_mvmr_input(exposure_dat, exposure_list, outcome.id.mrbase=breast_cancer_id)
+    mvmr_input <- make_mvmr_input(exposure_dat, outcome.id.mrbase=breast_cancer_id)
     
     # format data to be in MVMR package-compatiable df
-    mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta.")),
-                            BYG = mvmr_input$YG$beta.outcome,
-                            seBXGs = mvmr_input$XGs %>% select(contains("se.")),
-                            seBYG = mvmr_input$YG$se.outcome,
-                            RSID = mvmr_input$XGs$SNP)
+    mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta")),  # exposure betas
+                            BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
+                            seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
+                            seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
+                            RSID = mvmr_input$XGs$SNP)                               # SNPs
   #  estimate causal effects using method in MVMR package
     mvmr_res <-ivw_mvmr(r_input=mvmr_out) %>% 
                tidy_mvmr_output() %>% 
-               mutate(exposure = unique(exposure_dat$exposure),
+               mutate(exposure = mvmr_input$exposures,
                       outcome = breast_cancer_id)
     
     write_tsv(mvmr_res, paste0(mediator_dir, "mvmr_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_using_MVMR_", Sys.Date(),".tsv"))
