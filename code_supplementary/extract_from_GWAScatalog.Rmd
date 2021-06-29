@@ -330,7 +330,7 @@ study4_data<-read_csv(paste0(data_path_tophits_raw, "mammodensity_Brand2018.csv"
 
 
 study4_data_tidy<- study4_data %>% 
-                mutate(Phenotype = ifelse(Phenotype == "Percent dense volume", "Percent mammographic density ",
+                mutate(Phenotype = ifelse(Phenotype == "Percent dense volume", "Percent mammographic density",
                                    ifelse(Phenotype == "Absolute dense volume", "Mammographic density (dense area)",
                                    ifelse(Phenotype == "Absolute non-dense volume", "Mammographic density (non-dense area)", Phenotype)))) %>% 
                         format_data() %>% 
@@ -338,8 +338,38 @@ study4_data_tidy<- study4_data %>%
                         mutate(exposure = paste(exposure, "(Brand 2018)"))
 
 write_tsv(study4_data_tidy, paste0(data_path_tophits, "mammographic_density_brand_tophits.tsv"))
+
 ```
 
+## **Study 5 , Sieh, 2020**
+```{r}
+study5_data<-read_csv(paste0(data_path_tophits_raw, "mammographi_density_sieh2020_extracted_from_supl.csv")) %>% 
+            tidyr::separate(alleles , into = c("other_allele", "effect_allele" ), sep = "/", remove=T)
+da_dat <- study5_data %>% select(SNP:where, starts_with("DA")) %>% 
+                          filter(DA_pval < 5e-08) %>% 
+                          mutate(Phenotype = "Mammographic density (dense area) (Sieh 2020)") %>% 
+                          select(-where) %>% 
+                          rename_all(~gsub('DA_', '', .)) %>% 
+                          format_data() %>% 
+                          clump_data()
+nda_dat <- study5_data %>% select(SNP:where, starts_with("NDA")) %>% 
+                          filter(NDA_pval < 5e-08) %>% 
+                          mutate(Phenotype = "Mammographic density (non-dense area) (Sieh 2020)") %>% 
+                          select(-where) %>% 
+                          rename_all(~gsub('NDA_', '', .)) %>% 
+                          format_data() %>% 
+                          clump_data()
+pd_dat <- study5_data %>% select(SNP:where, starts_with("PD")) %>% 
+                          filter(PD_pval < 5e-08) %>% 
+                          mutate(Phenotype = "Percent mammographic density (Sieh 2020)") %>% 
+                          select(-where) %>% 
+                          rename_all(~gsub('PD_', '', .)) %>% 
+                          format_data() %>% 
+                          clump_data()
+write_tsv(da_dat, paste0(data_path_tophits, "mammographic_density_DA_sieh_tophits.tsv"))
+write_tsv(nda_dat, paste0(data_path_tophits, "mammographic_density_NDA_sieh_tophits.tsv"))
+write_tsv(pd_dat, paste0(data_path_tophits, "mammographic_density_PD_sieh_tophits.tsv"))
+```
 
 
 
