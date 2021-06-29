@@ -350,9 +350,10 @@ cBMI_OR <- basic_model %>% filter(exposure == "Childhood BMI") %>% pull(or)
 cBMI_OR2 <- basic_model2 %>% filter(exposure == "Childhood BMI") %>% pull(or)
 
 #pal<-c(wes_palette("Darjeeling1")[c(1,4,2,5,3)])
-dat_BMI$outcome<-"Breast cancer"
-dat_BMI<- dat_BMI %>% mutate(direct = gsub("BMI", "body size", direct))
- 
+dat_BMI<- dat_BMI %>% mutate(direct = gsub("BMI", "body size", direct)) %>% 
+                      mutate(direct = gsub("accounted for nothing", "(total effect)", direct),
+                             outcome  = "Breast cancer")
+
 p2<-ggplot(dat_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=bmi_no_bmi)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
   geom_point(size=2)+

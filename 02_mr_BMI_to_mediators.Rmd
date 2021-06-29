@@ -442,10 +442,11 @@ merged_data <- merged_data %>%
               filter(outcome %in% 
                       c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
                       "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
-                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B", "HOMA-IR",
+                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B [reupload]",
                       "Childhood height", "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
               mutate(outcome = ifelse(trait_category != "Hormones", 
                                        gsub(" \\(.*\\)", "", outcome), outcome)) %>% 
+              mutate(outcome = gsub(" [reupload]", "", outcome, fixed = T)) %>%
               mutate(outcome = case_when(outcome == "fasting insulin" ~ "Fasting Insulin",
                                          outcome == "fasting glucose" ~ "Fasting Glucose",
                                          outcome == "IGF" ~ "IGF-1",
@@ -453,6 +454,7 @@ merged_data <- merged_data %>%
                                          outcome == "Childhood height" ~ "Age 10 height",
                                               
                                          TRUE ~ outcome))
+                # NB for making A/B figure, will need to manually remove childhood height from the image   
               
   
 
@@ -488,13 +490,15 @@ ggsave(paste0("figures/merged_cBMI-to-mediators_IVW.png"),
 ```{r}
 # p is plot above, p2 is from 03
 library(cowplot)
-x<-plot_grid(p, p2, labels = c('A', 'B'), nrow=1) # p2 is from 03_...Rmd
+x<-plot_grid(p, p2, labels = c('Step 1', 'Step 2'), nrow=1) # p2 is from 03_...Rmd
 ggsave(paste0("figures/merged_2-stepMR_new.png"),
        plot=x, scale=1.2, 
        width=25, height=13,
        units=c("cm"), dpi=300, limitsize=F)
 ```
-Combined plot of full data VS split sample data
+
+
+# Hormones combined plot of full data VS split sample data
 ```{r}
 full_data<-read_tsv(paste0(results_path, "_merged_results/results_MR_cBMI_mediators.tsv"))
 full_data <- full_data %>% 

@@ -83,7 +83,7 @@ if (source == "textfiles"){
   data_list <- list()
   for (i in 1:length(mediators)){
     instruments <- extract_instruments(mediators[i])
-    if (is.null(instruments)){ instruments <- extract_instruments(mediators[i], p1 = 10e-07)} # if no SNPs returned, try lower pval 
+    if (is.null(instruments)){ stop(paste0("No insrument fround for ", mediators[i]))} # if no SNPs returned
     data_list[[i]] <- clump_data(instruments)
     data_list[[i]]$exposure <- data_lookup %>% filter(mrbase.id==mediators[i]) %>% pull(trait)
   }
@@ -322,23 +322,28 @@ dat<- read_tsv(paste0(results_path, current_trait_category, "/merged/merged_mr_m
 
 dat %>% kable_it()
 
-# rearrange to be in the required order
-dat<-arrange(dat, exposure) %>% mutate(exposure=as.factor(exposure))
+	# rearrange to be in the required order
+dat<-arrange(dat, exposure) %>% 
+  mutate(exposure=as.factor(exposure)) %>% 
+   mutate(or_uci95 = ifelse(or_uci95 > 3.5, 3.5, or_uci95)) %>% 
+   mutate(OR_CI = paste0(round(or,2), " [",round(or_lci95,2) ,":",round(or_uci95,2), "]")) %>% 
+   filter(!grepl("Breast size", exposure))
+  
 dat$exposure <- forcats::fct_inorder(dat$exposure) %>% forcats::fct_rev() 
-
 pal<-c(unname(yarrr::piratepal("decision")))
-dat <-filter(dat, trait_type != "non-dense") # excluding due to low number of SNPs
 p<-ggplot(dat, aes(y=exposure, x=or, label=outcome, colour=trait_type, shape=method)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
   geom_point(size=2)+
+  geom_text(aes(label=OR_CI),hjust=-0.1, vjust=-0.6, size =2.5, color = 'darkgrey')+
   scale_color_manual(values=pal)+
   scale_shape_manual(values = c(19,1)) +
   geom_vline(xintercept=1, linetype='longdash') +
   theme_minimal_hgrid(10, rel_small = 1) +
+  scale_y_discrete(position = "right")+
   facet_wrap(~outcome, ncol=1)+
-  labs(color = "",y = "", x = "Odds ratio",
+  labs(y = "", x = "Odds ratio", shape="",
        title= paste0("                              Univariate MR results for ",current_trait_category ,", 95% CI") )+
-  theme(legend.position = "none", , plot.title.position = "plot")
+  theme(legend.position = "bottom",  plot.title.position = "plot")
 
 
 ggsave(paste0("figures/mediators_",current_trait_category ,"-to BCAC_", bc_data,"_IVW_v2.png"),
@@ -423,16 +428,23 @@ merged_data <- merged_data %>%
               filter(exposure %in% 
                       c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
                       "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
-                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B", "HOMA-IR",
-                       "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
-              mutate(exposure = ifelse(trait_category != "Hormones", 
+                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B [reupload]", 
+                       "Breast size (Ooi 2019)", "Percent mammographic density (Sieh 2020)", 
+                      "Mammographic density (dense area) (Sieh 2020)", "Mammographic density (non-dense area) (Sieh 2020)")) %>% 
+              mutate(exposure = ifelse(!trait_category %in% c("Hormones","Physical traits"), 
                                        gsub(" \\(.*\\)", "", exposure), exposure)) %>% 
+              mutate(exposure = gsub(" [reupload]", "", exposure, fixed = T)) %>% 
+              mutate(exposure = gsub(" (Ooi 2019)", "", exposure, fixed = T)) %>% 
+              mutate(exposure = gsub(" (Sieh 2020)", "", exposure, fixed = T)) %>% 
               mutate(exposure = case_when(exposure == "fasting insulin" ~ "Fasting Insulin",
                                          exposure == "fasting glucose" ~ "Fasting Glucose",
                                          exposure == "IGF" ~ "IGF-1",
-                                         exposure == "Percent mammographic density " ~ "Mammographic density (%)",
-                                              
-                                         TRUE ~ exposure))
+                                         exposure == "Percent mammographic density" ~ "Mammographic density (per cent)",
+                                         TRUE ~ exposure)) %>% 
+              mutate(exposure = gsub("Mammographic density", "MD", exposure, fixed = T)) %>% 
+              # setting fake UPCI for non-dense are for viz purposes
+              #mutate(or_uci95 = ifelse(or_uci95 > 3.5, 3.5, or_uci95)) %>%  # if using Brand MD
+              mutate(mr_test = ifelse(nsnp == 1, "wald_ratio", 'ivw'))
               
   
 merged_data$outcome <- "Breast cancer (outcome)"
@@ -441,10 +453,11 @@ merged_data$exposure<- forcats::fct_rev(merged_data$exposure)
 merged_data$trait_category <- forcats::fct_inorder(merged_data$trait_category)
 #write_tsv(merged_data, paste0(results_path, "_merged_results/results_MR_mediators_BCAC", bc_data,"_fig_input.tsv"))
 pal<-c(wes_palette("Darjeeling1")[c(2:5)])
-p2<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_category, colour=trait_category)) +
+p2<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_category, colour=trait_category, shape = mr_test)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
-  geom_point(size=2, shape=20)+
+  geom_point(size=2)+
   scale_color_manual(values=pal)+
+  scale_shape_manual(values=c(20,1))+
   #xlim(0.43, 2.5)+
   geom_vline(xintercept=1, linetype='longdash') +
   theme_minimal_grid(11) +
