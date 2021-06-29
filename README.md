@@ -30,14 +30,10 @@ As a part of this project I have performed the following (depending on data avai
 
 The five main categories of potential mediators considered ([mediators summary table][2]):
 
-  1.	Hormones (IGF1, oestradiol, SHBG (pre/post-menopause), testosterone (pre/post menopause; free/total/bioavailable))
+  1.	Hormones (IGF1, oestradiol, SHBG, testosterone (free/total/bioavailable)
   2.	Physical traits (mammographic density, breast size)
-  3.	Reproductive traits (age at menarche, age at first birth, number of births
-  4.  Glycaemic traits (fasting insulin, fasting glucose, HOMA-IR, HOMA-B, Hba1c)
-
-
-
-I have created a script that automatically runs all MR analyses for a specified mediator and produces a report with all results and sensitivity tests/plots. [This folder][3] contains PDFs for all hormone mediators, with all sensitivity tests, and the summary of all MR analyses is presented on the last page. 
+  3.	Reproductive traits (age at menarche, age at first birth, number of births, age at menopause)
+  4.  Glycaemic traits (fasting insulin, fasting glucose, HOMA-IR, Hba1c)
 
 
 
@@ -53,8 +49,6 @@ Main analysis scripts and metadata (see details below):
 ├── 04_mvmr_run_analysis.Rmd
 ├── 05_mvmr_create_plots.Rmd
 ├── 06_mediation_analysis.Rmd
-├── 07_generate_MR_reports.Rmd
-├── MRreport.Rmd
 ├── functions.R
 ├── functions_mvmr.R
 ├── metadata
@@ -69,21 +63,10 @@ Supplementary scripts:
 ├── code_supplementary
 │   ├── extract_from_GWAScatalog.Rmd
 │   └── review_mediators_in_MRBase.Rmd
-│   └── combine_data_from_reports.Rmd
 │   └── create_pheno_covariance_matrix.Rmd
 
 ```
 
-Old scripts that were retired after tidy main analysis scripts were created:
-
-```
-├── code_legacy
-│   ├── mvmr.R
-│   ├── mvmr_combined_plots.Rmd
-│   ├── performMR_BMI-to-BC.Rmd
-│   ├── performMR_BMI-to-Mediators.Rmd
-│   └── performMR_Mediators-to-BC.Rmd
-```
 
 Some exploratory scripts that may or may not be used for anything:
 
@@ -127,20 +110,6 @@ Some exploratory scripts that may or may not be used for anything:
 
 7. Rmd `06_mediation_analysis.Rmd` contains a workflow for performing MR mediation analysis using Difference and Product method, with CIs calculation using Delta and Propagation of Errors methods. The script also contains methods for plotting the calculated indirect estimates (+CIs) as forest plots. 
 
-
-8. **(WIP)** Rmd `07_generate_MR_reports.Rmd` calls report generation Rmd `MR_report.Rmd`:  
-	
-	For each mediator independently, this Rmd runs the following analyses: 
-	*	 univariable MR: BMI (childhood/adult) -> mediator
-	*	 univariable MR: mediator -> Breast Cancer 
-	*	 multivariable MR: childhood BMI + adult BMI -> mediator
-	*	 multivariable MR: childhood BMI + mediator -> Breast Cancer 
-	*	 multivariable MR: childhood BMI + adult BMI + mediator -> Breast Cancer 
-	*	 mediation analysis calculations (product, difference)
-	*	 sensitivity analyses for univariable MR
-	*	 sensitivity analyses for multivariable MR 
-
-	The report is saved as a PDF with all sensitivity plots and tables with estimated from all MR analyses. 
 
 
 
