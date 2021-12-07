@@ -288,17 +288,18 @@ for (i in 1:length(mediators)){
     
     # format data to be in MVMR package-compatiable df
     mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta")),  # exposure betas
-                            BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
-                            seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
-                            seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
-                            RSID = mvmr_input$XGs$SNP)                               # SNPs
+                        BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
+                        seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
+                        seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
+                        RSID = mvmr_input$XGs$SNP)                               # SNPs
+
   #  estimate causal effects using method in MVMR package
     mvmr_res <-ivw_mvmr(r_input=mvmr_out) %>% 
                tidy_mvmr_output() %>% 
                mutate(exposure = mvmr_input$exposures,
                       outcome = breast_cancer_id)
     
-    write_tsv(mvmr_res, paste0(mediator_dir, "mvmr_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_using_MVMR_", Sys.Date(),".tsv"))
+    #write_tsv(mvmr_res, paste0(mediator_dir, "mvmr_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_using_MVMR_", Sys.Date(),".tsv"))
     
   
     
@@ -310,11 +311,11 @@ for (i in 1:length(mediators)){
                         phenocor_values$early_bmi, 1), nrow=2, ncol=2)
       colnames(pheno_mat) = rownames(pheno_mat) = c("Childhood BMI", mediator_name)
       print(pheno_mat)
-      #extract SE matrix
-      se_matrix <- mvmr_input$XGs %>% select(contains("se.")) %>% as.data.frame()
+      #extract SE matrixm ### NB USE MVMR_OUT now
+      se_matrix <- mvmr_out %>% as_tibble() %>% select(contains("sebetaX")) %>% as.data.frame()
   
       #estimate gencov
-      gen_cov <- phenocov_mvmr(Pcov = pheno_mat, seBXGs = se_matrix)
+      gen_cov <- phenocov_mvmr(Pcov = as.matrix(pheno_mat), seBXGs = se_matrix)
     } else{
       gen_cov <- 0
     }
@@ -333,14 +334,14 @@ for (i in 1:length(mediators)){
     
     write_tsv(mvmr_sens_df, paste0(mediator_dir, "mvmr_sens_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_", Sys.Date(),".tsv"))
   
-    if (any(as.vector(sres) < 10)){
-      
-      print(paste0("Fst is < 10 for one of the exposures; calculating Qhet"))
-      mvmr_res_Qhet<-qhet_mvmr_tmp(r_input=mvmr_out, pcor=pheno_mat, CI=T, iterations=5) %>% 
-                      mutate(exposure = unique(exposure_dat$exposure),
-                      outcome = breast_cancer_id)
-      write_tsv(mvmr_res_Qhet, paste0(mediator_dir, "mvmr_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_using_MVMR_Qhet_", Sys.Date(),".tsv"))
-    }
+    #if (any(as.vector(sres) < 10)){
+    #  
+    #  print(paste0("Fst is < 10 for one of the exposures; calculating Qhet"))
+    #  mvmr_res_Qhet<-qhet_mvmr_tmp(r_input=mvmr_out, pcor=pheno_mat, CI=T, iterations=5) %>% 
+    #                  mutate(exposure = unique(exposure_dat$exposure),
+    #                  outcome = breast_cancer_id)
+    #  write_tsv(mvmr_res_Qhet, paste0(mediator_dir, "mvmr_earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_using_MVMR_Qhet_", Sys.Date(),".tsv"))
+    #}
      
     rm(exposure_list, full_gwas_list, exposure_dat, outcome_dat)
   }
@@ -382,6 +383,59 @@ for (i in 1:length(mediators)){
     
     write_tsv(mv_3exp, paste0(mediator_dir, "mvmr_adultBMI-earlyBMI-", mediator_file_name,"-to-BCAC_", bc_data,"_using_2SMR_", Sys.Date(),".tsv"))
     
+    
+     ## sensitivity analysis
+    
+    # create MVMR package input
+    mvmr_input <- make_mvmr_input(exposure_dat, outcome.id.mrbase=breast_cancer_id)
+    
+    # format data to be in MVMR package-compatiable df
+    mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta")),  # exposure betas
+                            BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
+                            seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
+                            seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
+                            RSID = mvmr_input$XGs$SNP)                               # SNPs
+
+    # find phenotypic correlation value in table and estimate gencov
+    if (mediator_name %in% phenocor_values$mediator){
+      print(paste0("Using phenocor for calculating Fst"))
+      
+      
+      y <- phenocor_values %>% filter(mediator %in% c(mediator_name, "Childhood BMI", "Adult BMI")) %>% 
+          select(mediator, adult_bmi, early_bmi) %>% # order matters
+          mutate(mediator =ifelse(mediator == mediator_name, 'mediator', mediator)) %>% 
+          arrange(mediator) %>%  # always bottom row
+          column_to_rownames('mediator') 
+        
+      pheno_mat <- y %>% mutate(mediator = c(as.vector(as.matrix(y['mediator',])), 1)) %>% 
+                         rename("Childhood BMI" = "early_bmi", "Adult BMI" = "adult_bmi")
+
+      print(pheno_mat)
+      
+      #extract SE matrixm ### NB USE MVMR_OUT now
+      se_matrix <- mvmr_out %>% as_tibble() %>% select(contains("sebetaX")) %>% as.data.frame()
+  
+      #estimate gencov
+      gen_cov <- phenocov_mvmr(Pcov = as.matrix(pheno_mat), seBXGs = se_matrix)
+    } else{
+      gen_cov <- 0
+    }
+    
+      #Test for weak instruments
+    sres <- strength_mvmr(r_input=mvmr_out, gencov=gen_cov)
+    colnames(sres) = paste(mvmr_input$exposures, "(Fst)")
+    print(sres)
+    
+    #Test for horizontal pleiotropy
+    pres <- pleiotropy_mvmr(r_input=mvmr_out, gencov=gen_cov)
+    
+    mvmr_sens_df <- sres
+    mvmr_sens_df$Qstat <- pres$Qstat
+    mvmr_sens_df$Qpval <- pres$Qpval
+    
+    write_tsv(mvmr_sens_df, paste0(mediator_dir, "mvmr_sens_adultBMI-earlyBMI-", mediator_file_name ,"-to-BCAC_", bc_data,"_", Sys.Date(),".tsv"))
+  
+    
     rm(exposure_list, outcome_mediator, full_gwas_list, exposure_dat, outcome_dat)
   }
   
@@ -418,12 +472,63 @@ for (i in 1:length(mediators)){
     
     write_tsv(mv_3exp, paste0(mediator_dir, "mvmr_height-earlyBMI-", mediator_file_name,"-to-BCAC_", bc_data,"_using_2SMR_", Sys.Date(),".tsv"))
     
+    
+     ## sensitivity analysis
+    
+    # create MVMR package input
+    mvmr_input <- make_mvmr_input(exposure_dat, outcome.id.mrbase=breast_cancer_id)
+    
+    # format data to be in MVMR package-compatiable df
+    mvmr_out <- format_mvmr(BXGs = mvmr_input$XGs %>% select(contains("beta")),  # exposure betas
+                            BYG = mvmr_input$YG$beta.outcome,                        # outcome beta
+                            seBXGs = mvmr_input$XGs %>% select(contains("se")),      # exposure SEs
+                            seBYG = mvmr_input$YG$se.outcome,                        # outcome SEs
+                            RSID = mvmr_input$XGs$SNP)                               # SNPs
+
+    # find phenotypic correlation value in table and estimate gencov
+    if (mediator_name %in% phenocor_values$mediator){
+      print(paste0("Using phenocor for calculating Fst"))
+      
+      
+      y <- phenocor_values %>% filter(mediator %in% c(mediator_name, "Childhood height", "Childhood BMI")) %>% 
+          select(mediator, early_bmi, child_height) %>%
+          mutate(mediator =ifelse(mediator == mediator_name, 'mediator', mediator)) %>% 
+          arrange(mediator) %>%  # always bottom row
+          column_to_rownames('mediator')
+      pheno_mat <- y %>% mutate(mediator = c(as.vector(as.matrix(y['mediator',])), 1)) %>% 
+                         rename("Childhood BMI" = "early_bmi", "Childhood height" = "child_height")
+
+      print(pheno_mat)
+      
+      #extract SE matrixm ### NB USE MVMR_OUT now
+      se_matrix <- mvmr_out %>% as_tibble() %>% select(contains("sebetaX")) %>% as.data.frame()
+  
+      #estimate gencov
+      gen_cov <- phenocov_mvmr(Pcov = as.matrix(pheno_mat), seBXGs = se_matrix)
+    } else{
+      gen_cov <- 0
+    }
+    
+      #Test for weak instruments
+    sres <- strength_mvmr(r_input=mvmr_out, gencov=gen_cov)
+    colnames(sres) = paste(mvmr_input$exposures, "(Fst)")
+    print(sres)
+    
+    #Test for horizontal pleiotropy
+    pres <- pleiotropy_mvmr(r_input=mvmr_out, gencov=gen_cov)
+    
+    mvmr_sens_df <- sres
+    mvmr_sens_df$Qstat <- pres$Qstat
+    mvmr_sens_df$Qpval <- pres$Qpval
+    
+    write_tsv(mvmr_sens_df, paste0(mediator_dir, "mvmr_sens_earlyBMI-height-", mediator_file_name ,"-to-BCAC_", bc_data,"_", Sys.Date(),".tsv"))
+  
+    
     rm(exposure_list, outcome_mediator, full_gwas_list, exposure_dat, outcome_dat)
   }
   
   print("Finished.")
 }
-
 ```
 
 
