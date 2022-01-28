@@ -2,7 +2,8 @@
 
 _This repository contains materials for the mini-project I've done as a part of my PhD programme at the University of Bristol_
 
-_Publication is curently in preparation_
+_Publication on MedRxiv: https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1_
+
 
 This README contains:
 - e-poster summarising the project research (2 Nov 2020)
