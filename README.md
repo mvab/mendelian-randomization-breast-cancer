@@ -1,10 +1,12 @@
 ## Deciphering how early life adiposity influences breast cancer risk using Mendelian randomization
 
-_This repository contains code and materials from a project I've done as a part of my PhD at the University of Bristol._
+This repository contains code and materials from a project I've done as a part of my PhD at the University of Bristol.
 
 _Publication on MedRxiv: [https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1](https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1)_
 
 _Related blogpost about setting up multivariable MR the way it was done in this project: [https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/](https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/)_
+
+_Cite this codebase:_ [![DOI](https://zenodo.org/badge/299559508.svg)](https://zenodo.org/badge/latestdoi/299559508)
 
 
 **This README contains:**
