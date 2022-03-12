@@ -442,22 +442,21 @@ merged_data <- merged_data %>%
               filter(outcome %in% 
                       c("IGF", "Oestradiol" , "SHBG" , "Testosterone (bioavailable)","Testosterone (free)", "Testosterone (total)",
                       "Age at first live birth (UKB)", "Age at menarche (Perry)","Age at menopause (Day)", "Number of births (UKB)",
-                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B [reupload]",
+                      "fasting glucose (Lagou)", "fasting insulin (Lagou)",  "HBa1c (Wheeler)", "HOMA-B [reupload]", 
                       "Childhood height", "Breast size (Ooi 2019)", "Percent mammographic density  (Brand 2018)", "Mammographic density (dense area) (Brand 2018)")) %>% 
               mutate(outcome = ifelse(trait_category != "Hormones", 
                                        gsub(" \\(.*\\)", "", outcome), outcome)) %>% 
-              mutate(outcome = gsub(" [reupload]", "", outcome, fixed = T)) %>%
+              mutate(outcome = gsub(" [reupload]", "", outcome, fixed = T)) %>% 
               mutate(outcome = case_when(outcome == "fasting insulin" ~ "Fasting Insulin",
                                          outcome == "fasting glucose" ~ "Fasting Glucose",
                                          outcome == "IGF" ~ "IGF-1",
                                          outcome == "Percent mammographic density " ~ "Mammographic density (%)",
-                                         outcome == "Childhood height" ~ "Age 10 height",
-                                              
+                                         outcome == "Childhood height" ~ "Dummy variable",
+                                           # NB for making A/B figure, will need to manually remove childhood height from the image   
                                          TRUE ~ outcome))
-                # NB for making A/B figure, will need to manually remove childhood height from the image   
               
   
-
+merged_data$exposure <- "Childhood body size (exposure)"
 
 merged_data$outcome <- factor(merged_data$outcome , levels = sort(merged_data$outcome))
 merged_data$outcome<- forcats::fct_rev(merged_data$outcome)
@@ -473,27 +472,33 @@ p<-ggplot(merged_data, aes(y=outcome, x=b, label=exposure , group = trait_catego
   scale_color_manual(values=pal)+
   #xlim(0.43, 2.5)+
   geom_vline(xintercept=0, linetype='longdash') +
-
   theme_minimal_grid(11) +
   facet_grid(trait_category~exposure, scale="free")+
   theme(strip.text = element_text(face = 'bold'))+
-  labs(color = "",y = "", x = "Effect size"
+  labs(color = "",y = "", x = "beta coefficient (1 SD change in mediator per body size category change)"
        #subtitle="",
        #title= paste0("                    Univariate MR: effect of childhood body size on mediators (effect size, 95% CI)") 
        )+
-  theme(legend.position = "none",  plot.title.position = "plot")
+  theme(legend.position = "none",  plot.title.position = "plot", axis.title.x=element_text(size=9))
+
+
+merged_data %>%  write_tsv(paste0("figures/plotting_data/fig3_a.tsv"))
+
 ggsave(paste0("figures/merged_cBMI-to-mediators_IVW.png"),
        plot=p, scale=1.2, 
        width=15, height=12,
        units=c("cm"), dpi=300, limitsize=F)
 ```
+
 ```{r}
 # p is plot above, p2 is from 03
+
 library(cowplot)
-x<-plot_grid(p, p2, labels = c('Step 1', 'Step 2'), nrow=1) # p2 is from 03_...Rmd
-ggsave(paste0("figures/merged_2-stepMR_new.png"),
-       plot=x, scale=1.2, 
-       width=25, height=13,
+x<-plot_grid(p, p2, labels = c('a', 'b'), nrow=1) # p2 is from 03_...Rmd
+
+ggsave(paste0("figures/merged_2-stepMR.png"),
+       plot=x, scale=1.4, bg="white",
+       width=20, height=11,
        units=c("cm"), dpi=300, limitsize=F)
 ```
 

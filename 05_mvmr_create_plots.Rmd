@@ -258,23 +258,6 @@ p<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_categ
        title= paste0("                   MVMR: direct effect of mediators on breast cancer (OR, 95% CI)") )+
   theme(legend.position = "none",  plot.title.position = "plot")
 
-## subset case; special rules
-#merged_data$exposure <- forcats::fct_rev(forcats::fct_inorder(merged_data$exposure))
-#pal<-c(wes_palette("Darjeeling1")[c(4,2,3)]) # 3 1 4 2
-#pX<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_category, colour=trait_category)) +
-#  geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.2) +
-#  geom_point(size=2, shape=20)+
-#  scale_color_manual(values=pal)+
-#  #xlim(0.43, 2.5)+
-#  geom_vline(xintercept=1, linetype='longdash') +
-#  theme_minimal_grid(9) +
-#  facet_grid(~outcome, scale="free", switch="x")+
-#  theme(strip.text = element_text(face = 'bold'))+
-#  labs(color = "",y = "", x = "Odds ratio", subtitle="",
-#       title= paste0("                   MVMR: direct effect of mediators on breast cancer (OR, 95% CI)") )+
-#  theme(legend.position = "none",  plot.title.position = "plot")
-
-
 
 ggsave(paste0("figures/merged_mediators_direct-to-BCAC_", bc_data,"_IVW", mvmr_method,".png"),
        plot=p, scale=1.2, 
@@ -350,33 +333,32 @@ cBMI_OR <- basic_model %>% filter(exposure == "Childhood BMI") %>% pull(or)
 cBMI_OR2 <- basic_model2 %>% filter(exposure == "Childhood BMI") %>% pull(or)
 
 #pal<-c(wes_palette("Darjeeling1")[c(1,4,2,5,3)])
+dat_BMI$outcome<-"Breast cancer"
 dat_BMI<- dat_BMI %>% mutate(direct = gsub("BMI", "body size", direct)) %>% 
-                      mutate(direct = gsub("accounted for nothing", "(total effect)", direct),
-                             outcome  = "Breast cancer")
-
-p2<-ggplot(dat_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=bmi_no_bmi)) +
+                      mutate(direct = gsub("accounted for nothing", "(total effect)", direct))
+dat_BMI <- mutate( dat_BMI, effect = ifelse(grepl('total effect', direct), "total", "direct"))
+ 
+p2<-ggplot(dat_BMI, aes(y=reorder(direct, -or), x=or, label=outcome, colour=effect)) +
   geom_errorbarh(aes(xmin=or_lci95, xmax=or_uci95), height=.3) +
   geom_point(size=2)+
-  #geom_vline(xintercept=cBMI_OR, linetype=2, colour = "#FF0000") +
   geom_vline(xintercept=cBMI_OR2, linetype=2, colour = "steelblue") +
   geom_vline(xintercept=1, linetype='longdash') +
-  theme_minimal_hgrid(9, rel_small = 1) +
+  theme_minimal_hgrid(10) +
   scale_color_manual(values=c("tomato", "steelblue"))+
   scale_y_discrete(position = "right")+
   theme(strip.text = element_text(face = 'bold'))+
-  #facet_wrap(~outcome, ncol=1)+
   facet_grid(~outcome, scale="free", switch="x")+
-  #facet_grid(trait_category~outcome, scale="free", switch="x")+
-labs(color = "",y = "", x = "Odds ratio", subtitle=""
-       #title="         MVMR: direct effect of childhood body size on breast cancer (OR, 95% CI) "
-       )+
-  theme(legend.position = "none")+#, plot.title.position = "plot")+
+  labs(color = "",y = "", x = "Odds ratio", subtitle="")+
+  theme(legend.position = "none")+
   theme(axis.text.y = element_text(colour = dat_BMI$text_col))
 
-ggsave(paste0("figures/merged_cBMI_direct-to-BCAC_", bc_data,"_IVW", mvmr_method,"_subset_tidy.png"),
-       plot=p2, scale=1.2, 
-       width=12, height=7,
+dat_BMI %>%  write_tsv(paste0("figures/plotting_data/fig4.tsv"))
+
+ggsave(paste0("figures/merged_cBMI_direct-to-BCAC_", bc_data,"_IVW", mvmr_method,"_subset_tidy3.pdf"),
+       plot=p2, scale=1.5, bg='white',
+       width=10, height=6,
        units=c("cm"), dpi=300, limitsize=F)
+
 
 
 

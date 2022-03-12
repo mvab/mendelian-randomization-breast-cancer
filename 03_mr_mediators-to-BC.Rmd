@@ -467,8 +467,12 @@ p2<-ggplot(merged_data, aes(y=exposure, x=or, label=outcome , group = trait_cate
        title=" "
       # title= paste0("                              Univariate MR: effect of mediators on breast cancer (OR, 95% CI)") 
       )+
-  theme(legend.position = "none",  plot.title.position = "plot")
-ggsave(paste0("figures/merged_mediators-to-BCAC_", bc_data,"_IVW.png"),
+  scale_x_log10(breaks = c(0.5, 1.0, 1.5, 2.0))+
+  theme(legend.position = "none",  plot.title.position = "plot", , axis.title.x=element_text(size=9))
+
+merged_data %>%  write_tsv(paste0("figures/plotting_data/fig3_b.tsv"))
+
+ggsave(paste0("figures/merged_mediators-to-BCAC_", bc_data,"_IVW_new.png"),
        plot=p2, scale=1.2, 
        width=15, height=12,
        units=c("cm"), dpi=300, limitsize=F)
