@@ -118,6 +118,27 @@ mvmr_res <-ivw_mvmr(r_input=mvmr_out) %>%
 write_tsv(mvmr_res, paste0(results_path, "bmi/merged/mvmr_BMIs-BCAC_", bc_data, "_using_MVMR",".tsv"))
 #write_tsv(mvmr_res, paste0(results_path, "bmi/merged/mvmr_height_BMIs-BCAC_", bc_data, "_using_MVMR",".tsv"))
 
+## Sensitivity tests
+# find phenotypic correlation value in table and estimate gencov
+print(paste0("Using phenocor for calculating Fst"))
+pheno_mat <- filter(phenocor_values, mediator %in% c('Childhood BMI', 'Adult BMI')) %>%  select(early_bmi, adult_bmi) %>%  as.matrix()
+colnames(pheno_mat) = rownames(pheno_mat) = c("Childhood BMI", 'Adult BMI')
+print(pheno_mat)
+#extract SE matrix
+se_matrix <- mvmr_out %>% as_tibble() %>% select(contains("sebetaX")) %>% as.data.frame()
+#estimate gencov
+gen_cov <- phenocov_mvmr(Pcov = as.matrix(pheno_mat), seBXGs = se_matrix)
+  #Test for weak instruments
+sres <- strength_mvmr(r_input=mvmr_out, gencov=gen_cov)
+colnames(sres) = paste(c("Childhood BMI", 'Adult BMI'), "(Fst)")
+print(sres)
+#Test for horizontal pleiotropy
+pres <- pleiotropy_mvmr(r_input=mvmr_out, gencov=gen_cov)
+mvmr_sens_df <- sres
+mvmr_sens_df$Qstat <- pres$Qstat
+mvmr_sens_df$Qpval <- pres$Qpval
+write_tsv(mvmr_sens_df, paste0(results_path, "bmi/merged/mvmr_sens_earlyBMI-adultBMI-to-BCAC_", bc_data,"_", Sys.Date(),".tsv"))
+
 ```
 
 
