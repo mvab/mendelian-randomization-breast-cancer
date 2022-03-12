@@ -69,15 +69,6 @@ Supplementary scripts:
 ```
 
 
-Some exploratory scripts that may or may not be used for anything:
-
-```
-├── code_exploratory
-│   ├── examine_phenotype_files.R
-│   ├── experimental_MVMR.Rmd
-│   ├── extract_instrumets_test.R
-│   └── making_DAGs.R
-```
 
 
 
