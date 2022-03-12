@@ -1,11 +1,14 @@
 ## Deciphering how early life adiposity influences breast cancer risk using Mendelian randomization
 
-_This repository contains materials for the mini-project I've done as a part of my PhD programme at the University of Bristol_
+_This repository contains code and materials from a project I've done as a part of my PhD at the University of Bristol._
 
-_Publication on MedRxiv: https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1_
+_Publication on MedRxiv: [https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1](https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1)_
+
+_Related blogpost about setting up multivariable MR the way it was done in this project: [https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/](https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/)_
 
 
-This README contains:
+**This README contains:**
+
 - e-poster summarising the project research (2 Nov 2020)
 - project background and aims
 - outline of the project work/code stored in this repo
@@ -23,18 +26,18 @@ Multiple observational studies and a recent MR study (Richardson et al., 2020) h
 
 As a part of this project I have performed the following (depending on data availability):
 
-  -	Extensive literature study into potential mediators that may be influenced by childhood BMI and affect breast cancer risk ([lit review summary here][1])
+  -	Extensive literature study into potential mediators that may be influenced by childhood BMI and affect breast cancer risk 
   -	MR of childhood BMI on the identified potential mediators (step 1 of 2-step MR)
   -	MR of the identified potential mediators on breast cancer (step 2 of 2-step MR)
   -	Multivariable MR analysis on mediators that show causal effects in the 2-step MR
   -	Mediation analysis using the product and difference methods to calculate mediated direct and indirect effects of the individual mediators on breast cancer risk
 
-The five main categories of potential mediators considered ([mediators summary table][2]):
+The five main categories of potential mediators considered:
 
   1.	Hormones (IGF1, oestradiol, SHBG, testosterone (free/total/bioavailable)
   2.	Physical traits (mammographic density, breast size)
   3.	Reproductive traits (age at menarche, age at first birth, number of births, age at menopause)
-  4.  Glycaemic traits (fasting insulin, fasting glucose, HOMA-IR, Hba1c)
+  4.  Glycaemic traits (fasting insulin, fasting glucose, HOMA-B, Hba1c)
 
 
 
@@ -105,39 +108,8 @@ Supplementary scripts:
 
 
 
-_From supplementary_
+_Supplementary scripts_
 
 `extract_from_GWAScatalog.Rmd` was used for looking up traits (breast size and mammographic density) in GWAS catalogue to extract the SNPs to use as instruments fro this traits. However, for most studies it ended up bbeing easier (more reliable) to just get the data from supplementary information provided with the papers. The code loads raw data, cleans it, and saves in the format that is ready to be used as instruments in MR analysis.
 
 `create_pheno_covariance_matrix.Rmd` contains the workflow for applying the phenotypic correlation function from `metaCCA` package to calculate pheno_cor scores between any two GWAS traits. Tho pheno_cor score is required for MVMR sensitivity tests (F-statistics calculation). The process is time intensive, so all pheno_cor values needed for this project have been pre-calculated and are now stored in `metadata/pheno_correlations.csv`.
-
-_From exploratory_
-
-`experimental_MVMR.Rmd` is an adhoc testing script for other MVMR packages, supl. sensitivity analyses, as well as different combinations of exposure/mediators 3+ MVMR analyses. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1]: https://uob-my.sharepoint.com/:x:/r/personal/ny19205_bristol_ac_uk/Documents/Documents%20-%20OneDrive/Mini-project2/project_bibliography.xlsx?d=wff10dc7fdc9f4e0b9bc40326f7c43cc9&csf=1&web=1&e=QgyR29
-[2]: https://uob-my.sharepoint.com/:x:/g/personal/ny19205_bristol_ac_uk/EX5_32z2ksVAthk1hnaUozsBfQg3QnXWEkT-5yOeXnO8SQ?e=bO4hOE
-[3]: https://uob-my.sharepoint.com/:f:/g/personal/ny19205_bristol_ac_uk/EgGuNOAusytCo0f8Ods2NwABbHLq5hCN_xe5ZhyCgXBGyg?e=f0Xked
-
