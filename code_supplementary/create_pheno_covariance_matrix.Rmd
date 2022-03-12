@@ -50,7 +50,8 @@ read_for_metaCCA <- function(file_gwas, data_name) {
 }
 
 read_for_metaCCA_vcf <- function(file_gwas, data_name, mrbase.id) {
-  # for reading in data from text friles converted from GWAS VCF files
+  # for reading in data from text files converted from GWAS VCF files
+  # parse_gwas_vcf.sh  - use this script to convert GWAS VCF file to format required for this function
   
   tmp <- vroom(file_gwas) %>% 
             select(-c(contains("pval")))  %>% 
@@ -86,6 +87,13 @@ adult_bmi_gwas_file <- read_csv(data_lookup)  %>% filter(trait == "Adult BMI") %
 adult_bmi_file_gwas <- paste0(data_path_gwas_raw, adult_bmi_gwas_file)
 adult_bmi_data_name <- paste0(read_csv(data_lookup) %>% filter(trait == "Adult BMI") %>% pull(trait_file_name)) 
 bmi_list[[2]] <- read_for_metaCCA(adult_bmi_file_gwas, adult_bmi_data_name)
+
+childhood_height_gwas_file <- read_csv(data_lookup)  %>% filter(trait == "Childhood height") %>% pull(original_file)
+childhood_height_file_gwas <- paste0(data_path_gwas_raw, childhood_height_gwas_file)
+childhood_height_data_name <- paste0(read_csv(data_lookup) %>% filter(trait == "Childhood height") %>% pull(trait_file_name)) 
+bmi_list[[3]] <- read_for_metaCCA(childhood_height_file_gwas, childhood_height_data_name)
+
+
 ```
 
 ```{r message=F}
@@ -94,23 +102,26 @@ data_source <- "ieu_gwas_pipeline" # ieu_gwas_pipeline : subsets to UKB data pro
 traits <- read_csv(data_lookup) %>% filter(source == data_source) %>% pull(trait)
 
 data_source  <-"ieu_ukb_vcf_convert" # this is just a variable for next steps
-traits <- read_csv(data_lookup) %>% filter(grepl("UKB", trait)) %>% pull(mrbase.id)
+traits <- read_csv(data_lookup) %>% filter(grepl("menarche|menopause", trait)) %>% filter(!is.na(mrbase.id)) %>% pull(mrbase.id)
 
 ```
 
 
 ```{r message=F}
 
-results <- data.frame(matrix(ncol=3, dimnames=list(NULL, c("mediator", "early_bmi", "adult_bmi"))))
-
+results <- data.frame()
 
 # copy  of BMI list
 l <- bmi_list
 
-traits<-traits[c(1,2)] # bmis only
-traits<-traits[c(2,3)] # specify traits
+#traits<-traits[c(1,2)] # bmis only
+#traits<-traits[c(2,3)] # specify traits
+traits <- c("ieu-a-1004" )
+print(traits)
 
 for (i in 1:length(traits)) {
+  
+  n=length(l) # depends if we only added bmis or height too
 
   if (data_source == "ieu_gwas_pipeline"){
     current_trait<-traits[i]
@@ -120,7 +131,7 @@ for (i in 1:length(traits)) {
   
     print(paste0("Processing: ", current_trait, ", ", gwas_filename, " as ", data_name))
     
-    l[[3]] <- read_for_metaCCA(file_gwas, data_name)
+    l[[n+1]] <- read_for_metaCCA(file_gwas, data_name)
   
   } else if (data_source == "ieu_ukb_vcf_convert"){
     
@@ -130,13 +141,13 @@ for (i in 1:length(traits)) {
     
     print(paste0("Processing: ", current_trait, ", ", file_gwas, " as ", data_name))
 
-    l[[3]] <- read_for_metaCCA_vcf(file_gwas, data_name, traits[i])
+    l[[n+1]] <- read_for_metaCCA_vcf(file_gwas, data_name, traits[i])
   }
      
 
   dat <- l %>% 
     # join into a table by SNP column
-    purrr::reduce(inner_join, by = "SNP") %>%  # inner join is used because raw GWAS and vcf GWAS are differenct
+    purrr::reduce(inner_join, by = "SNP") %>%  # inner join is used because raw GWAS and vcf GWAS are different
     # split into 3 cols
     separate(SNP, into=c('rsid', 'allele_0', 'allele_1'), sep="_") %>% 
     # drop indels
@@ -164,13 +175,18 @@ for (i in 1:length(traits)) {
   s_yy = estimateSyy( S_XY = s_xy )
   dim(s_yy)    
 
-  colnames(s_yy) = rownames(s_yy) = c("Childhood BMI", "Adult BMI", current_trait)
   
   print("Merging new rows")
-  results <- rbind(results, 
-                   c(current_trait, 
-                     s_yy["Childhood BMI", current_trait], 
-                     s_yy["Adult BMI", current_trait])) %>% drop_na()
+  
+  data_name <- gsub("_", "-", data_name) 
+  tmp<- s_yy %>% as.data.frame() %>% 
+    rownames_to_column('n') %>% 
+    select(n, data_name) %>% 
+    column_to_rownames('n') %>%  t()
+  
+  results <- rbind(results, tmp) %>%
+            drop_na()
+  
   print(results)
   print("Done")
   
@@ -185,19 +201,27 @@ write_tsv(results, paste0(results_path, "pheno_correlations_tmp.tsv"))
 # then same this filein metadata/
 
 
-#                    mediator            early_bmi            adult_bmi
-#1                         IGF  -0.0361859370411845   -0.120314689681651
-#2 Testosterone (bioavailable) -0.00383400797496225    0.258677907382292
-#3         Testosterone (free)   0.0011877206298818    0.274948956843423
-#4                        SHBG -0.00618570596079564   -0.391566530757684
-#5        Testosterone (total) -0.00308270021523709   0.0843377825757734
-#6            Childhood height   0.0478503376118171 0.000311649197591022
-#8               Childhood BMI                    1    0.197457970757342
-#9                   Adult BMI    0.197457970757342                    1
-#        Age at menarche (UKB)    -0.18038630381757  -0.150829774036217
-#Age at first live birth (UKB) -0.00187112630367445  -0.160617665382926
-#       Number of births (UKB)  -0.0293005563881025  0.0471011521303226
-#       Age at menopause (UKB)   0.0146786574820213 -0.0209636169549356
+
+#tibble::tribble(
+#                        ~mediator,   ~early_bmi,   ~adult_bmi, ~child_height,
+#                            "IGF", -0.036185937,  -0.12031469,    0.02945991,
+#    "Testosterone (bioavailable)", -0.003834008,  0.258677907,  -0.007487593,
+#            "Testosterone (free)",  0.001187721,  0.274948957,  -0.005593064,
+#                           "SHBG", -0.006185706, -0.391566531,   0.005745311,
+#           "Testosterone (total)",   -0.0030827,  0.084337783,  -0.001596138,
+#               "Childhood height",  0.047850338,  0.000311649,             1,
+#                  "Childhood BMI",            1,  0.197457971,   0.047850338,
+#                      "Adult BMI",  0.197457971,            1,   0.000311649,
+#          "Age at menarche (UKB)", -0.180386304, -0.150829774,            NA,
+#  "Age at first live birth (UKB)", -0.001871126, -0.160617665,            NA,
+#         "Number of births (UKB)", -0.029300556,  0.047101152,            NA,
+#         "Age at menopause (UKB)",  0.014678657, -0.020963617,            NA,
+#                     "Chronotype",  0.016089757, -0.030266736,            NA,
+#        "Age at menarche (Perry)",   -0.1035335,  -0.09516159,   -0.06769585,
+#         "Age at menopause (Day)", -0.003869682,  -0.03127742,   -0.00885289
+#  )
+
+
 
 ```
 
