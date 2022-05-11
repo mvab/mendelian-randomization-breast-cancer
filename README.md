@@ -2,7 +2,7 @@
 
 This repository contains code and materials from a project I've done as a part of my PhD at the University of Bristol.
 
-_Publication on MedRxiv: [https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1](https://www.medrxiv.org/content/10.1101/2021.06.22.21259310v1)_
+_Publication in Communications Biology: [https://www.nature.com/articles/s42003-022-03272-5](https://www.nature.com/articles/s42003-022-03272-5)_
 
 _Related blogpost about setting up multivariable MR the way it was done in this project: [https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/](https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/)_
 
