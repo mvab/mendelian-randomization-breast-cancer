@@ -6,7 +6,7 @@ _Publication in Communications Biology: [https://www.nature.com/articles/s42003-
 
 _Related blogpost about setting up multivariable MR the way it was done in this project: [https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/](https://marinalearning.netlify.app/2021/03/22/setting-up-multivariable-mendelian-randomization-analysis/)_
 
-_Cite this codebase:_ [![DOI](https://zenodo.org/badge/299559508.svg)](https://zenodo.org/badge/latestdoi/299559508)
+_If you are using this codebase, please cite:_ [https://www.nature.com/articles/s42003-022-03272-5](https://www.nature.com/articles/s42003-022-03272-5)_
 
 
 **This README contains:**
